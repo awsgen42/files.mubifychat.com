@@ -160,11 +160,11 @@ you want deploys gated.
 The Worker always serves the bundled UI, so single-origin Cloudflare hosting
 keeps working. To additionally front it with Vercel:
 
-1. **Deploy the UI to Vercel.** Leave the project's Build & Output settings on
-   their defaults — Vercel's Next.js builder reads `output: 'export'` from
-   `next.config.ts` and handles the static output itself. Overriding the output
-   directory to `out` breaks the build, because the builder looks for
-   `routes-manifest.json` in `.next/`.
+1. **Deploy the UI to Vercel.** `vercel.json` pins `outputDirectory` to
+   `.next`, which is where the Next.js builder expects `routes-manifest.json`.
+   Do not point it at `out/` — the builder finds the exported files itself by
+   reading `output: 'export'` from `next.config.ts`, and an `out/` override
+   fails the build at the packaging step even though the compile succeeds.
 
    Set one environment variable in the Vercel project:
 
