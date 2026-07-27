@@ -139,6 +139,22 @@ mode there are no R2 S3 credentials, so uploads take the Worker-proxied path.
    npm run deploy
    ```
 
+### Deploying from CI
+
+`.github/workflows/deploy.yml` type-checks, tests and builds on every push and
+pull request, then deploys pushes to `main`. It needs two repository secrets
+(Settings → Secrets and variables → Actions):
+
+| Secret | Where to get it |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | My Profile → API Tokens. Needs Workers Scripts:Edit, Workers KV Storage:Edit, Workers R2 Storage:Edit, Account Settings:Read |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard sidebar, or `wrangler whoami` |
+
+Step 1 (creating the KV namespace and R2 bucket) is still a one-time manual
+step — CI deploys against resources that already exist. The deploy job targets
+the `production` GitHub environment, so you can add a required reviewer there if
+you want deploys gated.
+
 ### Tunable limits
 
 Set in `wrangler.jsonc` under `vars`:
