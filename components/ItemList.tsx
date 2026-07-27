@@ -23,7 +23,7 @@ export function ItemList({ session, downloadUrl }: ItemListProps) {
       </div>
 
       {items.length === 0 ? (
-        <p className="mt-4 rounded-xl bg-surface-muted p-6 text-center text-sm text-muted-foreground">
+        <p className="glass-input mt-4 border-dashed p-6 text-center text-sm text-muted-foreground">
           Nothing shared yet. Anything either device sends shows up here.
         </p>
       ) : (
@@ -62,8 +62,8 @@ function ItemRow({
   return (
     <li
       className={cx(
-        'rounded-xl border border-border p-3.5',
-        mine ? 'bg-surface-muted/60' : 'bg-accent-soft/25 border-accent/30',
+        'rounded-xl border p-3.5 backdrop-blur-sm transition-colors',
+        mine ? 'border-border-contrast bg-surface-muted' : 'border-accent/30 bg-accent-soft',
       )}
     >
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -77,7 +77,7 @@ function ItemRow({
 
       {item.kind === 'text' ? (
         <>
-          <pre className="mt-2.5 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-surface p-3 font-mono text-[13px] leading-relaxed">
+          <pre className="glass-input mt-2.5 max-h-56 overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-[13px] leading-relaxed">
             {item.text}
           </pre>
           <Button variant="secondary" className="mt-2.5" onClick={copyText}>
@@ -96,7 +96,7 @@ function ItemRow({
             <a
               href={downloadUrl(item.id)}
               download={item.name}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground shadow-lg shadow-accent/25 transition-all duration-200 hover:shadow-accent/40 hover:brightness-110 active:scale-[0.98]"
             >
               <DownloadIcon />
               Download

@@ -41,7 +41,7 @@ export function CodePanel({ session, pairingUrl, qr }: CodePanelProps) {
           </div>
 
           <p
-            className="mt-3 font-mono text-4xl font-semibold tracking-[0.18em] tabular-nums sm:text-5xl"
+            className="mt-3 bg-gradient-to-br from-foreground to-accent bg-clip-text font-mono text-4xl font-semibold tracking-[0.18em] tabular-nums text-transparent sm:text-5xl"
             aria-label={`Session code ${session.code.split('').join(' ')}`}
           >
             {formatCode(session.code)}

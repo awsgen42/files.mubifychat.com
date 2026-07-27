@@ -37,7 +37,7 @@ export function StartScreen({ busy, initialCode, onCreate, onJoin }: StartScreen
           Start a session on this device, then open Mubifiles on the other one and enter the code.
         </p>
 
-        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl bg-surface-muted p-3">
+        <label className="glass-input mt-4 flex cursor-pointer items-start gap-3 p-3">
           <input
             type="checkbox"
             checked={oneShot}
@@ -81,7 +81,7 @@ export function StartScreen({ busy, initialCode, onCreate, onJoin }: StartScreen
             pattern="[0-9]*"
             placeholder="000 000"
             aria-label="Session code"
-            className="w-full flex-1 rounded-xl border border-border bg-surface-muted px-4 py-3 text-center font-mono text-2xl tracking-[0.3em] placeholder:text-muted-foreground/50 sm:text-left"
+            className="glass-input w-full flex-1 px-4 py-3 text-center font-mono text-2xl tracking-[0.3em] outline-none placeholder:text-muted-foreground/40 sm:text-left"
           />
           <Button type="submit" variant="secondary" disabled={busy || code.length !== CODE_LENGTH}>
             <LinkIcon />

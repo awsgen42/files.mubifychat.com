@@ -37,7 +37,7 @@ export function Composer({ busy, maxFileBytes, maxTextChars, onSendText, onSendF
     <Card
       className={cx(
         'transition-colors',
-        dragging && 'border-accent bg-accent-soft/40 outline-2 outline-dashed outline-accent',
+        dragging && 'border-accent bg-accent-soft outline-2 outline-dashed outline-accent outline-offset-4',
       )}
     >
       <div
@@ -71,7 +71,7 @@ export function Composer({ busy, maxFileBytes, maxTextChars, onSendText, onSendF
           }}
           rows={4}
           placeholder="Paste or type text here…"
-          className="mt-3 w-full resize-y rounded-xl border border-border bg-surface-muted p-3 text-sm outline-none placeholder:text-muted-foreground/70"
+          className="glass-input mt-3 w-full resize-y p-3 text-sm outline-none placeholder:text-muted-foreground/60"
         />
 
         <div className="mt-3 flex flex-wrap items-center gap-2">

@@ -31,15 +31,23 @@ export function QrCode({ value, size = 168 }: { value: string; size?: number }) 
   }, [value, size]);
 
   return (
+    // The QR itself stays on solid white — scanners need the contrast — but the
+    // frame around it is glass so it sits with the rest of the UI.
     <div
-      className="flex shrink-0 items-center justify-center rounded-2xl bg-white p-3"
-      style={{ width: size + 24, height: size + 24 }}
+      className="glass flex shrink-0 items-center justify-center rounded-2xl p-2.5"
+      style={{ width: size + 20, height: size + 20 }}
     >
       {dataUrl ? (
         // eslint-disable-next-line @next/next/no-img-element -- data URL, nothing to optimise
-        <img src={dataUrl} alt="QR code for this session" width={size} height={size} className="rounded-lg" />
+        <img
+          src={dataUrl}
+          alt="QR code for this session"
+          width={size}
+          height={size}
+          className="rounded-xl bg-white p-2"
+        />
       ) : (
-        <div className="h-full w-full animate-pulse rounded-lg bg-neutral-200" />
+        <div className="h-full w-full animate-pulse rounded-xl bg-surface-muted" />
       )}
     </div>
   );

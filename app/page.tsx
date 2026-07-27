@@ -63,7 +63,7 @@ export default function Home() {
       {share.error && (
         <div
           role="alert"
-          className="mt-5 flex items-start gap-2.5 rounded-xl border border-danger/40 bg-danger/10 p-3.5 text-sm text-danger"
+          className="glass mt-5 flex items-start gap-2.5 rounded-xl border-danger/30 bg-danger/10 p-3.5 text-sm text-danger"
         >
           <AlertIcon width={18} height={18} className="mt-0.5 shrink-0" />
           <span className="flex-1">{share.error}</span>

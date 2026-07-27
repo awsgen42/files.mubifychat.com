@@ -22,7 +22,7 @@ export function TransferList({ transfers }: { transfers: Transfer[] }) {
               </div>
 
               <div
-                className="mt-2 h-2 overflow-hidden rounded-full bg-surface-muted"
+                className="mt-2 h-2 overflow-hidden rounded-full border border-border-contrast bg-surface-muted"
                 role="progressbar"
                 aria-valuenow={Math.round(percent)}
                 aria-valuemin={0}
@@ -30,7 +30,7 @@ export function TransferList({ transfers }: { transfers: Transfer[] }) {
                 aria-label={`Uploading ${transfer.name}`}
               >
                 <div
-                  className="h-full rounded-full bg-accent transition-[width] duration-200"
+                  className="h-full rounded-full bg-gradient-to-r from-accent to-accent/70 shadow-[0_0_12px_var(--accent)] transition-[width] duration-200"
                   style={{ width: `${percent}%` }}
                 />
               </div>
