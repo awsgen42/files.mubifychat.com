@@ -10,6 +10,9 @@ export interface Env {
   MAX_ITEMS: string;
   MAX_TEXT_CHARS: string;
 
+  /** Comma-separated origins allowed to call the API cross-origin. */
+  ALLOWED_ORIGINS?: string;
+
   // Optional secrets enabling presigned browser -> R2 uploads.
   R2_ACCOUNT_ID?: string;
   R2_ACCESS_KEY_ID?: string;

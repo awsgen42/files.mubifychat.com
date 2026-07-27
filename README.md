@@ -155,6 +155,48 @@ step — CI deploys against resources that already exist. The deploy job targets
 the `production` GitHub environment, so you can add a required reviewer there if
 you want deploys gated.
 
+### Split hosting: UI on Vercel, API on Cloudflare
+
+The Worker always serves the bundled UI, so single-origin Cloudflare hosting
+keeps working. To additionally front it with Vercel:
+
+1. **Deploy the UI to Vercel.** It picks up `vercel.json` (static export, build
+   output in `out/`). Set one environment variable in the Vercel project:
+
+   ```
+   NEXT_PUBLIC_API_BASE_URL = https://mubifiles.<subdomain>.workers.dev
+   ```
+
+   It is inlined at build time, so changing it needs a redeploy. Leave it unset
+   for the Cloudflare build, where relative `/api/*` paths are correct.
+
+2. **Allow the Vercel origin on the Worker.** Set `ALLOWED_ORIGINS` in
+   `wrangler.jsonc` to a comma-separated list and redeploy:
+
+   ```jsonc
+   "ALLOWED_ORIGINS": "https://mubifiles.vercel.app,https://files.mubify.com"
+   ```
+
+   Origins are matched exactly and echoed back individually — never `*`. An
+   unlisted origin gets no CORS headers, so the browser blocks it. Preview
+   deployments get a new URL each time, so add the specific ones you want to
+   work, or a stable alias.
+
+Worth knowing about this topology:
+
+- **Downloads still stream through the Worker**, so Cloudflare's zero egress
+  still applies to the bulk of the traffic. Vercel only serves the UI and small
+  JSON calls.
+- **`download` on an anchor is ignored cross-origin.** Downloads work because
+  the Worker sends `Content-Disposition: attachment`, which is also where the
+  filename comes from.
+- **Tokens travel in the `Authorization` header, not cookies**, so
+  `Allow-Credentials` stays off and there is no ambient authority to steal.
+  Downloads use `?t=` instead, which conveniently avoids a preflight on a plain
+  navigation.
+- Two hosts means two deploys and two places to look when something breaks.
+  Single-origin Cloudflare remains the simpler option if you do not need Vercel.
+
 ### Tunable limits
 
 Set in `wrangler.jsonc` under `vars`:
@@ -167,6 +209,7 @@ Set in `wrangler.jsonc` under `vars`:
 | `MAX_SESSION_BYTES` | 524288000 | Total per session (500 MB) |
 | `MAX_ITEMS` | 50 | Items per session |
 | `MAX_TEXT_CHARS` | 100000 | Characters per text item |
+| `ALLOWED_ORIGINS` | `""` | Comma-separated origins allowed to call the API cross-origin. Empty means same-origin only. |
 
 ## API
 

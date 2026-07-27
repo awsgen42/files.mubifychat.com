@@ -214,9 +214,15 @@ async function createFileItemRoute(ctx: Ctx, code: string): Promise<Response> {
   touch(session, ctx.now);
   await saveSession(ctx.env, session, ctx.config, ctx.now);
 
+  // Absolute, because the client may be served from a different origin than
+  // the API and would otherwise PUT to its own host.
   const upload: UploadTarget = hasPresignCredentials(ctx.env)
     ? { mode: 'presign', url: await presignUpload(ctx.env, item.key), headers: {} }
-    : { mode: 'proxy', url: `/api/sessions/${session.code}/items/${item.id}/blob`, headers: {} };
+    : {
+        mode: 'proxy',
+        url: `${ctx.url.origin}/api/sessions/${session.code}/items/${item.id}/blob`,
+        headers: {},
+      };
 
   const response: CreateFileItemResponse = {
     item: stripKey(item),

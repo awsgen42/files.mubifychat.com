@@ -1,4 +1,5 @@
 import { handleApi } from './api';
+import { preflight, resolveOrigin, withCors } from './cors';
 import type { Env } from './env';
 import { ApiError, apiError } from './http';
 import { sessionIdFromObjectKey, sessionIdKey } from './session';
@@ -16,17 +17,26 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
+    // The Worker keeps serving the bundled UI, so Cloudflare remains a
+    // complete deployment even when a separate frontend host is in play.
     if (!url.pathname.startsWith('/api/')) {
       return withSecurityHeaders(await env.ASSETS.fetch(request));
     }
 
+    const early = preflight(request, env);
+    if (early) return early;
+
+    const origin = resolveOrigin(request, env);
     try {
-      return withSecurityHeaders(await handleApi(request, env, url));
+      return withCors(withSecurityHeaders(await handleApi(request, env, url)), origin);
     } catch (err) {
-      if (err instanceof ApiError) return withSecurityHeaders(apiError(err));
+      if (err instanceof ApiError) return withCors(withSecurityHeaders(apiError(err)), origin);
       console.error('Unhandled API error', err);
-      return withSecurityHeaders(
-        apiError(new ApiError(500, 'internal_error', 'Something went wrong. Please try again.')),
+      return withCors(
+        withSecurityHeaders(
+          apiError(new ApiError(500, 'internal_error', 'Something went wrong. Please try again.')),
+        ),
+        origin,
       );
     }
   },

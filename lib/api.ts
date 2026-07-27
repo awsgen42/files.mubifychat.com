@@ -6,6 +6,17 @@ import type {
   SessionView,
 } from '@/shared/types';
 
+/**
+ * Empty when the Worker serves the UI too (single origin). Set to the Worker's
+ * URL when the frontend is hosted elsewhere, e.g. on Vercel. Inlined at build
+ * time, so each deployment target needs its own build.
+ */
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? '').replace(/\/$/, '');
+
+function apiUrl(path: string): string {
+  return `${API_BASE}${path}`;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -21,7 +32,7 @@ async function request<T>(path: string, init: RequestInit = {}, token?: string):
   if (token) headers.set('authorization', `Bearer ${token}`);
   if (init.body) headers.set('content-type', 'application/json');
 
-  const response = await fetch(path, { ...init, headers });
+  const response = await fetch(apiUrl(path), { ...init, headers });
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as ApiErrorBody | null;
     throw new ApiError(response.status, body?.error ?? 'error', body?.message ?? 'Request failed.');
@@ -55,8 +66,10 @@ export const api = {
   endSession: (code: string, token: string) =>
     request<{ ok: true }>(`/api/sessions/${code}/end`, { method: 'POST' }, token),
 
+  // A plain browser navigation, so the token rides in the query string rather
+  // than a header — which also means no CORS preflight on downloads.
   downloadUrl: (code: string, token: string, itemId: string) =>
-    `/api/sessions/${code}/items/${itemId}/download?t=${encodeURIComponent(token)}`,
+    apiUrl(`/api/sessions/${code}/items/${itemId}/download?t=${encodeURIComponent(token)}`),
 };
 
 export interface UploadProgress {

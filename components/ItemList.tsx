@@ -93,6 +93,9 @@ function ItemRow({
           </div>
 
           {item.state === 'ready' ? (
+            // Browsers ignore `download` on cross-origin links, which is the
+            // case when the API is hosted separately — the filename comes from
+            // the Content-Disposition header the Worker sets either way.
             <a
               href={downloadUrl(item.id)}
               download={item.name}
