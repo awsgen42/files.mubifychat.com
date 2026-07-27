@@ -1,0 +1,54 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mubifiles",
+  "main": "worker/index.ts",
+  "compatibility_date": "2025-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+
+  // The exported Next.js UI. The Worker handles /api/* first; everything
+  // else falls through to the static assets.
+  "assets": {
+    "directory": "./out",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"],
+    "not_found_handling": "404-page"
+  },
+
+  // Session metadata: code -> session document, with a sliding TTL.
+  "kv_namespaces": [
+    {
+      "binding": "SESSIONS",
+      "id": "REPLACE_WITH_KV_NAMESPACE_ID",
+      "preview_id": "REPLACE_WITH_KV_PREVIEW_ID"
+    }
+  ],
+
+  // File bodies. Zero egress cost, which is what makes this app cheap to run.
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "mubifiles",
+      "preview_bucket_name": "mubifiles-preview"
+    }
+  ],
+
+  // Purges R2 objects whose session has already expired out of KV.
+  "triggers": {
+    "crons": ["*/15 * * * *"]
+  },
+
+  "vars": {
+    // Sliding inactivity window, seconds. Reset on every send/fetch.
+    "SESSION_IDLE_TTL_SECONDS": "900",
+    // Hard cap regardless of activity, seconds.
+    "SESSION_MAX_TTL_SECONDS": "86400",
+    "MAX_FILE_BYTES": "104857600",
+    "MAX_SESSION_BYTES": "524288000",
+    "MAX_ITEMS": "50",
+    "MAX_TEXT_CHARS": "100000"
+    // Optional, set as secrets to enable direct browser -> R2 presigned uploads:
+    //   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME
+    // Without them the Worker proxies uploads instead.
+  }
+}

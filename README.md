@@ -1,0 +1,181 @@
+# Mubifiles
+
+Instant text & file sharing between devices. Open Mubifiles on your phone, paste
+text or drop a file, and read the 6-digit code (or scan the QR) on your PC — no
+app, no account.
+
+The code opens a **session**, not a one-shot link: once both devices are paired
+they keep sending things back and forth under the same code until the session
+goes quiet.
+
+This repository implements **Phase 1 (MVP)** of the project plan.
+
+## What's here
+
+| | |
+|---|---|
+| UI | Next.js (App Router), statically exported, Tailwind CSS v4 |
+| API | A single Cloudflare Worker (`worker/`) |
+| Session metadata | Cloudflare KV, with a sliding TTL |
+| File bodies | Cloudflare R2 (zero egress fees) |
+| Cleanup | Cron-triggered Worker + an R2 lifecycle rule as a backstop |
+
+The Worker serves the exported UI through its assets binding and handles
+`/api/*` itself, so the whole app deploys as one `wrangler deploy`.
+
+### Implemented
+
+- Text and file sharing under a shared 6-digit code + QR
+- Session pairing, with both devices able to send
+- Sliding 15-minute inactivity expiry, capped at 24 hours
+- Optional one-time-download mode
+- Live status via polling (device joined, new item shared)
+- Upload progress with speed and ETA
+- Direct browser → R2 uploads via presigned URLs, with a Worker-proxied fallback
+- Responsive mobile-first UI, dark / light theme
+- Per-IP rate limiting on session creation and code entry
+
+Phases 2–5 from the plan (zip, password protection, previews, PWA, accounts,
+WebSocket pairing, Turnstile) are not implemented.
+
+## Architecture
+
+```
+Device A ──POST /api/sessions──────────▶ Worker ──▶ KV   session:<code>
+         ◀─ code + token                                 sid:<id> ─┐
+                                                                   │ GC index
+Device A ──POST .../items/file────────▶ Worker ──▶ presigned PUT   │
+Device A ──PUT (bytes)────────────────────────────────────▶ R2 ◀──┘
+Device A ──POST .../items/:id/complete▶ Worker (measures the real object size)
+
+Device B ──POST /api/sessions/<code>/join▶ Worker  → status: active
+Device B ──GET  /api/sessions/<code>   ▶ Worker  (polled every 2s)
+Device B ──GET  .../items/:id/download ▶ Worker ──▶ R2 (streamed back)
+```
+
+Every send or fetch rewrites the KV entry with a fresh TTL, which is what keeps
+an active session alive. When the TTL lapses the metadata disappears on its own;
+the cron job then sweeps R2 for objects whose session is gone.
+
+### Session lifetime
+
+- Idle timeout: `SESSION_IDLE_TTL_SECONDS` (default 900) — slides on activity
+- Hard cap: `SESSION_MAX_TTL_SECONDS` (default 86400) — never slides
+- "End session" deletes the metadata and the objects immediately
+
+### Security
+
+- Codes are uniformly random (rejection-sampled, so no modulo bias) and are only
+  valid while the session lives
+- Every request needs a bearer token issued at create/join; tokens are stored
+  as SHA-256 hashes and compared in constant time
+- Downloads are always served as `application/octet-stream` with
+  `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff`, so an
+  uploaded `.html` or `.svg` can never execute on the origin
+- Filenames are stripped of path separators and control characters
+- Uploaded object sizes are measured server-side, not trusted from the client
+- Per-IP fixed-window rate limits on session creation, joining, and sending
+
+## Local development
+
+```bash
+npm install
+npm run dev          # Next dev server, UI only (no API)
+npm run dev:worker   # full stack: builds the UI, runs the Worker with local KV + R2
+npm test             # unit tests
+npm run typecheck    # app and Worker type checks
+```
+
+`npm run dev:worker` serves everything on http://127.0.0.1:8787 using
+Miniflare's local KV and R2 emulation — no Cloudflare account needed. In local
+mode there are no R2 S3 credentials, so uploads take the Worker-proxied path.
+
+## Deploying
+
+1. **Create the resources**
+
+   ```bash
+   npx wrangler kv namespace create SESSIONS
+   npx wrangler kv namespace create SESSIONS --preview
+   npx wrangler r2 bucket create mubifiles
+   ```
+
+   Put the returned namespace ids into `wrangler.jsonc` in place of the
+   `REPLACE_WITH_...` placeholders.
+
+2. **Optional: enable direct browser → R2 uploads.** Without these secrets the
+   Worker proxies upload bodies, which works but is capped by the Workers
+   request-body limit. Create an R2 API token (Object Read & Write) and set:
+
+   ```bash
+   npx wrangler secret put R2_ACCOUNT_ID
+   npx wrangler secret put R2_ACCESS_KEY_ID
+   npx wrangler secret put R2_SECRET_ACCESS_KEY
+   npx wrangler secret put R2_BUCKET_NAME
+   ```
+
+   Presigned uploads are cross-origin, so the bucket also needs CORS
+   (`wrangler r2 bucket cors put mubifiles --file cors.json`):
+
+   ```json
+   [
+     {
+       "AllowedOrigins": ["https://files.mubify.com"],
+       "AllowedMethods": ["PUT"],
+       "AllowedHeaders": ["*"],
+       "ExposeHeaders": [],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+
+3. **Add a lifecycle rule** as a backstop, in case the cron job ever stops
+   running: delete objects under the `sessions/` prefix after 1 day, matching
+   the hard session cap.
+
+4. **Deploy**
+
+   ```bash
+   npm run deploy
+   ```
+
+### Tunable limits
+
+Set in `wrangler.jsonc` under `vars`:
+
+| Var | Default | Meaning |
+|---|---|---|
+| `SESSION_IDLE_TTL_SECONDS` | 900 | Sliding inactivity window |
+| `SESSION_MAX_TTL_SECONDS` | 86400 | Hard cap on session lifetime |
+| `MAX_FILE_BYTES` | 104857600 | Per-file limit (100 MB) |
+| `MAX_SESSION_BYTES` | 524288000 | Total per session (500 MB) |
+| `MAX_ITEMS` | 50 | Items per session |
+| `MAX_TEXT_CHARS` | 100000 | Characters per text item |
+
+## API
+
+All routes take `Authorization: Bearer <token>` except create and join.
+Downloads accept `?t=<token>` instead, since they are plain browser navigations.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/sessions` | Create a session; returns code + host token |
+| `POST` | `/api/sessions/:code/join` | Pair the second device; returns guest token |
+| `GET` | `/api/sessions/:code` | Poll session state (participants, items) |
+| `POST` | `/api/sessions/:code/items/text` | Share a text item |
+| `POST` | `/api/sessions/:code/items/file` | Reserve a file item; returns an upload target |
+| `PUT` | `/api/sessions/:code/items/:id/blob` | Proxied upload (fallback path only) |
+| `POST` | `/api/sessions/:code/items/:id/complete` | Confirm the upload landed |
+| `GET` | `/api/sessions/:code/items/:id/download` | Download a file |
+| `POST` | `/api/sessions/:code/end` | Close the session and delete everything |
+
+## Known limitations
+
+- A session document is a single KV value, so two devices writing in the same
+  instant can lose one write. With two paired devices this is rare; moving to D1
+  (planned for Phase 2) removes it.
+- KV is eventually consistent, so a session can occasionally take a few seconds
+  to become visible in a distant region.
+- Rate limiting is a KV counter and is therefore approximate across colos.
+- Uploads that are abandoned mid-transfer leave a pending item until the session
+  expires.
