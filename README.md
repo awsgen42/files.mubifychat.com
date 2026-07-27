@@ -160,8 +160,13 @@ you want deploys gated.
 The Worker always serves the bundled UI, so single-origin Cloudflare hosting
 keeps working. To additionally front it with Vercel:
 
-1. **Deploy the UI to Vercel.** It picks up `vercel.json` (static export, build
-   output in `out/`). Set one environment variable in the Vercel project:
+1. **Deploy the UI to Vercel.** Leave the project's Build & Output settings on
+   their defaults — Vercel's Next.js builder reads `output: 'export'` from
+   `next.config.ts` and handles the static output itself. Overriding the output
+   directory to `out` breaks the build, because the builder looks for
+   `routes-manifest.json` in `.next/`.
+
+   Set one environment variable in the Vercel project:
 
    ```
    NEXT_PUBLIC_API_BASE_URL = https://mubifiles.<subdomain>.workers.dev
