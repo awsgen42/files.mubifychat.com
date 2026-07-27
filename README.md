@@ -179,7 +179,7 @@ keeps working. To additionally front it with Vercel:
    `wrangler.jsonc` to a comma-separated list and redeploy:
 
    ```jsonc
-   "ALLOWED_ORIGINS": "https://mubifiles.vercel.app,https://files.mubify.com"
+   "ALLOWED_ORIGINS": "https://www.mubifiles.com,https://mubifiles.com"
    ```
 
    Origins are matched exactly and echoed back individually — never `*`. An

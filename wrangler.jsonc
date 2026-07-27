@@ -49,8 +49,9 @@
     "MAX_TEXT_CHARS": "100000",
     // Origins allowed to call the API cross-origin, comma-separated. Only
     // needed when the UI is hosted separately (e.g. on Vercel); the Worker's
-    // own origin never needs listing.
-    "ALLOWED_ORIGINS": ""
+    // own origin never needs listing. Matched exactly, so www and the apex
+    // are distinct entries, and Vercel preview URLs need adding by hand.
+    "ALLOWED_ORIGINS": "https://www.mubifiles.com,https://mubifiles.com"
     // Optional, set as secrets to enable direct browser -> R2 presigned uploads:
     //   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME
     // Without them the Worker proxies uploads instead.
