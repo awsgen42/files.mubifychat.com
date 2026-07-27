@@ -29,29 +29,28 @@ jobs:
           WORKER=$(grep -oP '"name"\s*:\s*"\K[^"]+' wrangler.jsonc | head -1)
           echo "Worker name: $WORKER"
 
-          # Wrangler titles a namespace "<worker>-<binding>", plus "_preview".
-          MAIN_TITLE="${WORKER}-SESSIONS"
-          PREVIEW_TITLE="${WORKER}-SESSIONS_preview"
-
+          # Wrangler has used both "<worker>-<binding>" and a bare "<binding>"
+          # as the namespace title depending on version, so accept either.
           kv_id_for() {
             npx wrangler kv namespace list 2>/dev/null \
-              | jq -r --arg t "$1" '.[] | select(.title==$t) | .id' | head -1
+              | jq -r --arg a "${WORKER}-$1" --arg b "$1" \
+                  '.[] | select(.title==$a or .title==$b) | .id' | head -1
           }
 
-          KV_ID=$(kv_id_for "$MAIN_TITLE" || true)
+          KV_ID=$(kv_id_for SESSIONS || true)
           if [ -z "$KV_ID" ]; then
             npx wrangler kv namespace create SESSIONS
-            KV_ID=$(kv_id_for "$MAIN_TITLE")
+            KV_ID=$(kv_id_for SESSIONS)
           else
-            echo "Reusing existing namespace $MAIN_TITLE"
+            echo "Reusing the existing SESSIONS namespace"
           fi
 
-          KV_PREVIEW_ID=$(kv_id_for "$PREVIEW_TITLE" || true)
+          KV_PREVIEW_ID=$(kv_id_for SESSIONS_preview || true)
           if [ -z "$KV_PREVIEW_ID" ]; then
             npx wrangler kv namespace create SESSIONS --preview
-            KV_PREVIEW_ID=$(kv_id_for "$PREVIEW_TITLE")
+            KV_PREVIEW_ID=$(kv_id_for SESSIONS_preview)
           else
-            echo "Reusing existing namespace $PREVIEW_TITLE"
+            echo "Reusing the existing SESSIONS_preview namespace"
           fi
 
           if [ -z "$KV_ID" ] || [ -z "$KV_PREVIEW_ID" ]; then
