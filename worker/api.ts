@@ -296,7 +296,10 @@ async function downloadRoute(ctx: Ctx, code: string, itemId: string): Promise<Re
     'content-type': DOWNLOAD_CONTENT_TYPE,
     'content-disposition': contentDisposition(filename),
     'x-content-type-options': 'nosniff',
-    'cache-control': 'no-store',
+    // Shared files are private and short-lived: never cached by an
+    // intermediary, never indexed if a URL with its token ever leaks.
+    'cache-control': 'private, no-store',
+    'x-robots-tag': 'noindex, nofollow',
     'accept-ranges': session.oneShot ? 'none' : 'bytes',
     'content-length': String(object.size),
   });

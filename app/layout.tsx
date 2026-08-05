@@ -2,11 +2,40 @@ import type { Metadata, Viewport } from 'next';
 import { themeBootstrapScript } from '@/lib/useTheme';
 import './globals.css';
 
+const SITE_URL = 'https://www.mubifiles.com';
+const TITLE = 'Mubifiles — instant file & text sharing between devices';
+const DESCRIPTION =
+  'Move text and files between your phone and your PC in seconds. No app, no account — just a 6-digit code or a QR scan. Files are deleted automatically when the session closes.';
+
 export const metadata: Metadata = {
-  title: 'Mubifiles — instant file & text sharing',
-  description:
-    'Move text and files between your phone and your PC in seconds. No app, no account — just a 6-digit code.',
+  metadataBase: new URL(SITE_URL),
+  title: TITLE,
+  description: DESCRIPTION,
   applicationName: 'Mubifiles',
+  keywords: [
+    'file sharing',
+    'send files phone to pc',
+    'share text between devices',
+    'no account file transfer',
+    'QR file transfer',
+  ],
+  // Hardcoded to the clean homepage: the static export serves the same
+  // document for /?code=123456, and those session URLs must never be treated
+  // as separate pages.
+  alternates: { canonical: '/' },
+  robots: { index: true, follow: true },
+  openGraph: {
+    type: 'website',
+    url: SITE_URL,
+    siteName: 'Mubifiles',
+    title: TITLE,
+    description: DESCRIPTION,
+  },
+  twitter: {
+    card: 'summary',
+    title: TITLE,
+    description: DESCRIPTION,
+  },
 };
 
 export const viewport: Viewport = {
@@ -14,8 +43,33 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f7f8fa' },
-    { media: '(prefers-color-scheme: dark)', color: '#1b1d24' },
+    { media: '(prefers-color-scheme: light)', color: '#f4f4fa' },
+    { media: '(prefers-color-scheme: dark)', color: '#16161f' },
+  ],
+};
+
+/** schema.org WebApplication, emitted into the static HTML at build time. */
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'WebApplication',
+  name: 'Mubifiles',
+  url: SITE_URL,
+  description: DESCRIPTION,
+  applicationCategory: 'UtilitiesApplication',
+  operatingSystem: 'Any (web browser)',
+  browserRequirements: 'Requires JavaScript.',
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'USD',
+  },
+  featureList: [
+    'Share text between devices with a 6-digit code',
+    'Send files directly from a phone to a PC',
+    'QR code pairing',
+    'Automatic expiry after 15 minutes of inactivity',
+    'Optional one-time downloads',
+    'No account required',
   ],
 };
 
@@ -24,6 +78,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        />
       </head>
       <body>{children}</body>
     </html>

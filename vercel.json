@@ -4,6 +4,11 @@
   "outputDirectory": ".next",
   "headers": [
     {
+      "source": "/",
+      "has": [{ "type": "query", "key": "code" }],
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive" }]
+    },
+    {
       "source": "/(.*)",
       "headers": [
         { "key": "X-Content-Type-Options", "value": "nosniff" },

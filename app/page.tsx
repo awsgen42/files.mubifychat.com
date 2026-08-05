@@ -5,6 +5,7 @@ import { CodePanel } from '@/components/CodePanel';
 import { Composer } from '@/components/Composer';
 import { AlertIcon, LogoMark, PowerIcon } from '@/components/Icons';
 import { ItemList } from '@/components/ItemList';
+import { LandingContent } from '@/components/LandingContent';
 import { QrCode } from '@/components/QrCode';
 import { StartScreen } from '@/components/StartScreen';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -44,7 +45,8 @@ export default function Home() {
         <div className="flex items-center gap-2.5">
           <LogoMark />
           <div>
-            <h1 className="text-lg font-semibold leading-tight">Mubifiles</h1>
+            {/* Not an <h1>: the landing section below owns the page heading. */}
+            <p className="text-lg font-semibold leading-tight">Mubifiles</p>
             <p className="text-xs text-muted-foreground">Phone to PC in seconds</p>
           </div>
         </div>
@@ -102,6 +104,11 @@ export default function Home() {
           />
         )}
       </main>
+
+      {/* Rendered whenever no session is open, which is also the state the
+          static export is prerendered in — so this copy is in the HTML a
+          crawler receives, before any JavaScript runs. */}
+      {!share.session && <LandingContent />}
 
       <footer className="mt-8 text-center text-xs text-muted-foreground">
         Files are deleted automatically when the session closes.
