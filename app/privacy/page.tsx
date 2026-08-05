@@ -4,6 +4,7 @@ import { ContentPageShell } from '@/components/ContentPageShell';
 import {
   ABUSE_EMAIL,
   IP_HANDLING,
+  IP_HANDLING_DETAIL,
   LOCAL_STORAGE_ITEMS,
   MAX_FILE_MB,
   MAX_SESSION_MB,
@@ -104,6 +105,12 @@ export default function PrivacyPage() {
       <section className="glass card p-5 sm:p-6">
         <h2 className="text-lg font-semibold">IP addresses</h2>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{IP_HANDLING}</p>
+        <p className="mt-4 text-sm font-medium">Exactly what that means</p>
+        {IP_HANDLING_DETAIL.map((paragraph) => (
+          <p key={paragraph} className="mt-3 text-sm leading-relaxed text-muted-foreground">
+            {paragraph}
+          </p>
+        ))}
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
           Separately, our hosting providers below receive your IP address as part of ordinary web
           traffic and keep their own request logs under their own policies. We do not control those

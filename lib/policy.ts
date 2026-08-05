@@ -14,6 +14,8 @@
  * prefer deleting a sentence here over letting it go stale.
  */
 
+import { RATE_LIMIT_KEY_TTL_SECONDS } from '@/shared/limits';
+
 export const ABUSE_EMAIL = 'abuse@mubifiles.com';
 
 export const SESSION_IDLE_MINUTES = 15;
@@ -31,6 +33,19 @@ export const MAX_SESSION_MB = 500;
  */
 export const IP_HANDLING =
   'IP addresses are used only to rate-limit requests. They appear in short-lived rate-limiting counters that expire within a couple of minutes, and are never recorded against a session, a file, or an upload. We keep no record linking an address to anything that was sent.';
+
+/**
+ * The mechanics behind IP_HANDLING, stated exactly. Rendered on /privacy only;
+ * /report gets the summary above.
+ *
+ * The TTL is imported rather than written out, so retuning the limiter cannot
+ * silently make this page wrong.
+ */
+export const IP_HANDLING_DETAIL = [
+  `Most endpoints are rate-limited with a counter held in Cloudflare KV. The address forms part of that counter's key — literally written down, alongside which limit it counts and which time window it belongs to. The key is set to expire ${RATE_LIMIT_KEY_TTL_SECONDS} seconds after it is written, and is discarded then. We never read these keys for any purpose other than deciding whether to allow the next request.`,
+  'The session-state endpoint, which your browser polls while a session is open, uses Cloudflare’s own rate-limiting service instead. Your address is passed to it as a key; nothing is stored on our side at all.',
+  'In neither case is the address written into the session record, attached to a file, or kept anywhere that would let it be matched to something you sent. There is no join to make.',
+] as const;
 
 /** What the browser keeps, and why. Nothing here leaves the device. */
 export const LOCAL_STORAGE_ITEMS = [

@@ -1,11 +1,9 @@
+import { RATE_LIMIT_KEY_TTL_SECONDS, RATE_LIMIT_WINDOW_SECONDS } from '../shared/limits';
 import type { Env } from './env';
 import { rateLimited } from './http';
 
-/** KV's minimum TTL, which also sets the smallest usable window. */
-const WINDOW_SECONDS = 60;
-
 export interface RateLimit {
-  /** Requests allowed per 60s window. */
+  /** Requests allowed per window. */
   limit: number;
   /** Namespace so creating sessions and guessing codes are counted separately. */
   bucket: string;
@@ -19,13 +17,13 @@ export interface RateLimit {
  */
 export async function enforceRateLimit(env: Env, ip: string, { limit, bucket }: RateLimit): Promise<void> {
   if (ip === 'unknown') return;
-  const window = Math.floor(Date.now() / 1000 / WINDOW_SECONDS);
+  const window = Math.floor(Date.now() / 1000 / RATE_LIMIT_WINDOW_SECONDS);
   const key = `rl:${bucket}:${ip}:${window}`;
 
   const current = Number((await env.SESSIONS.get(key, 'text')) ?? '0');
   if (current >= limit) throw rateLimited();
 
-  await env.SESSIONS.put(key, String(current + 1), { expirationTtl: WINDOW_SECONDS * 2 });
+  await env.SESSIONS.put(key, String(current + 1), { expirationTtl: RATE_LIMIT_KEY_TTL_SECONDS });
 }
 
 /**
