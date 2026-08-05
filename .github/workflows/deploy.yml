@@ -1,11 +1,11 @@
 name: CI
 
+# Checks only. Deployment is Cloudflare's job now: Workers Builds watches the
+# repository and runs the build itself, so nothing here ships anything.
 on:
   push:
     branches: [main]
   pull_request:
-  # Lets you deploy the current default branch by hand from the Actions tab.
-  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -31,43 +31,8 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      # Kept even though nothing here consumes the output: it is what catches a
+      # build break on a pull request, before the branch is merged and Workers
+      # Builds runs the same build against production.
       - name: Build the static UI
         run: npm run build
-
-      # Passed to the deploy job so the Worker ships the exact bundle we tested.
-      - name: Upload the export
-        uses: actions/upload-artifact@v4
-        with:
-          name: out
-          path: out/
-          retention-days: 1
-
-  deploy:
-    name: Deploy to Cloudflare
-    needs: check
-    # Only real pushes to the default branch deploy; PRs stop at `check`.
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - run: npm ci
-
-      - name: Download the export
-        uses: actions/download-artifact@v4
-        with:
-          name: out
-          path: out/
-
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # `deploy` only, because the UI was already built in the check job.
-          command: deploy

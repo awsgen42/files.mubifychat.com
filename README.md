@@ -174,21 +174,38 @@ Presigned uploads are cross-origin, so the bucket also needs CORS
    npm run deploy
    ```
 
-### Deploying from CI
+### Deploying
 
-`.github/workflows/deploy.yml` type-checks, tests and builds on every push and
-pull request, then deploys pushes to `main`. It needs two repository secrets
-(Settings → Secrets and variables → Actions):
+The Worker deploys through **Cloudflare Workers Builds**, which watches the
+repository and runs the build itself. A push is the deploy — there is no deploy
+step in GitHub Actions, and no Cloudflare credentials stored in GitHub.
 
-| Secret | Where to get it |
+Because Workers Builds runs exactly the commands it is configured with and
+nothing else, the test gate has to live in the build command rather than
+alongside it:
+
+| Setting | Value |
 |---|---|
-| `CLOUDFLARE_API_TOKEN` | My Profile → API Tokens. Needs Workers Scripts:Edit, Workers KV Storage:Edit, Workers R2 Storage:Edit, Account Settings:Read |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard sidebar, or `wrangler whoami` |
+| Build command | `npm ci && npm run typecheck && npm test && npm run build` |
+| Deploy command | `npx wrangler deploy` |
+| Root directory | *(empty — the repo root)* |
 
-Step 1 (creating the KV namespace and R2 bucket) is still a one-time manual
-step — CI deploys against resources that already exist. The deploy job targets
-the `production` GitHub environment, so you can add a required reviewer there if
-you want deploys gated.
+A non-zero exit from any of those fails the build and blocks the deploy, which
+is what keeps a broken commit from shipping.
+
+The single repository holds both halves and that needs no special handling:
+`npm run build` exports the UI to `out/`, and the assets binding in
+`wrangler.jsonc` already points there, so the Worker deploy picks up the
+freshly built frontend.
+
+`.github/workflows/deploy.yml` still runs the same type check, tests and build
+on pull requests and on pushes to `main`, but it no longer deploys anything —
+it is there to fail a pull request before it is merged. (The filename is now a
+misnomer; it is left alone so existing required-status-check settings keep
+matching.)
+
+Creating the KV namespace and R2 buckets remains a one-time manual step; builds
+deploy against resources that already exist.
 
 ### Split hosting: UI on Vercel, API on Cloudflare
 
