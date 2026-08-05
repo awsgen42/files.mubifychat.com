@@ -3,15 +3,26 @@
 import { useState } from 'react';
 import type { SessionView, ShareItem } from '@/shared/types';
 import { formatBytes, formatTime } from '@/lib/format';
+import type { Transfer } from '@/lib/useShareSession';
 import { CheckIcon, CopyIcon, DownloadIcon, FileIcon, TextIcon } from './Icons';
 import { Button, Card, Pill, cx } from './ui';
 
 interface ItemListProps {
   session: SessionView;
   downloadUrl: (itemId: string) => string;
+  /**
+   * The uploads running in this tab. The server only knows an item is
+   * `pending` — it cannot know how far along it is, because the part manifest
+   * is held client-side — so this is the only source of progress there is, and
+   * the Uploading card renders the same array. Reading from it here rather
+   * than describing the item separately is what stops the two disagreeing.
+   */
+  transfers: Transfer[];
+  /** Only reachable for an upload with no live transfer; see ItemRow. */
+  onCancel: (itemId: string) => void;
 }
 
-export function ItemList({ session, downloadUrl }: ItemListProps) {
+export function ItemList({ session, downloadUrl, transfers, onCancel }: ItemListProps) {
   // Newest first — on a phone that keeps the latest item above the fold.
   const items = [...session.items].sort((a, b) => b.createdAt - a.createdAt);
 
@@ -29,7 +40,14 @@ export function ItemList({ session, downloadUrl }: ItemListProps) {
       ) : (
         <ul className="mt-4 space-y-3">
           {items.map((item) => (
-            <ItemRow key={item.id} item={item} mine={item.from === session.you} downloadUrl={downloadUrl} />
+            <ItemRow
+              key={item.id}
+              item={item}
+              mine={item.from === session.you}
+              downloadUrl={downloadUrl}
+              transfer={transfers.find((t) => t.itemId === item.id)}
+              onCancel={onCancel}
+            />
           ))}
         </ul>
       )}
@@ -37,14 +55,35 @@ export function ItemList({ session, downloadUrl }: ItemListProps) {
   );
 }
 
+/**
+ * What to call a pending item.
+ *
+ * Without a live transfer we genuinely do not know how far along it is: that
+ * is the other device's view of an upload in progress, or our own after a
+ * reload discarded the manifest. Saying "Uploading…" and nothing more is the
+ * honest answer — inventing a percentage would be the same kind of lie as the
+ * "Waiting for upload" this replaces, which claimed nothing was happening
+ * while the file was two thirds sent.
+ */
+function pendingLabel(transfer: Transfer | undefined): string {
+  if (!transfer) return 'Uploading…';
+  if (transfer.error) return 'Upload failed';
+  if (transfer.total <= 0) return 'Uploading…';
+  return `Uploading… ${Math.min(100, Math.round((transfer.loaded / transfer.total) * 100))}%`;
+}
+
 function ItemRow({
   item,
   mine,
   downloadUrl,
+  transfer,
+  onCancel,
 }: {
   item: ShareItem;
   mine: boolean;
   downloadUrl: (itemId: string) => string;
+  transfer: Transfer | undefined;
+  onCancel: (itemId: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -71,7 +110,7 @@ function ItemRow({
         <span className="font-medium">{mine ? 'You sent' : 'Received'}</span>
         <span aria-hidden="true">·</span>
         <time dateTime={new Date(item.createdAt).toISOString()}>{formatTime(item.createdAt)}</time>
-        {item.state === 'pending' && <Pill tone="muted">Uploading…</Pill>}
+        {item.state === 'pending' && <Pill tone="muted">{pendingLabel(transfer)}</Pill>}
         {item.state === 'consumed' && <Pill tone="muted">Downloaded</Pill>}
       </div>
 
@@ -104,10 +143,21 @@ function ItemRow({
               <DownloadIcon />
               Download
             </a>
-          ) : (
+          ) : item.state === 'consumed' ? (
             <Button variant="secondary" disabled>
-              {item.state === 'consumed' ? 'No longer available' : 'Waiting for upload'}
+              No longer available
             </Button>
+          ) : (
+            mine &&
+            !transfer && (
+              // An upload of ours with no live transfer is stranded: the tab
+              // that was sending it is gone, so it can never finish, and the
+              // Cancel in the Uploading card went with it. Without this the
+              // item would hold its reserved bytes until the session expired.
+              <Button variant="secondary" onClick={() => onCancel(item.id)}>
+                Cancel upload
+              </Button>
+            )
           )}
         </div>
       )}

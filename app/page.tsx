@@ -118,7 +118,12 @@ export default function Home() {
                   onSendFiles={(files) => void share.sendFiles(files)}
                 />
                 <TransferList transfers={share.transfers} onCancel={(id) => void share.cancelUpload(id)} />
-                <ItemList session={share.session} downloadUrl={share.downloadUrl} />
+                <ItemList
+                  session={share.session}
+                  downloadUrl={share.downloadUrl}
+                  transfers={share.transfers}
+                  onCancel={(id) => void share.cancelUpload(id)}
+                />
               </>
             }
           />
