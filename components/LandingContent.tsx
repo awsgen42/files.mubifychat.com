@@ -3,7 +3,8 @@
  * state, so it is present in the prerendered HTML before JavaScript runs —
  * without it a crawler sees only the app's loading state.
  */
-import { FAQ } from '@/lib/faq';
+import Link from 'next/link';
+import { FAQ, buildFaqSchema } from '@/lib/faq';
 
 const STEPS = [
   {
@@ -65,7 +66,25 @@ export function LandingContent() {
             </div>
           ))}
         </dl>
+
+        <p className="mt-5 text-sm text-muted-foreground">
+          Moved here from another tool? See our rundown of{' '}
+          <Link
+            href="/snapdrop-alternative"
+            className="font-medium text-accent underline underline-offset-2 hover:opacity-80"
+          >
+            Snapdrop alternatives
+          </Link>{' '}
+          and how they compare.
+        </p>
       </section>
+
+      {/* Emitted here rather than in the root layout: the schema must describe
+          the questions this page actually shows. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildFaqSchema(FAQ)) }}
+      />
     </div>
   );
 }

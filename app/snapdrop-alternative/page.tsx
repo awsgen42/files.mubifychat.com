@@ -1,0 +1,259 @@
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { LogoMark } from '@/components/Icons';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { buildFaqSchema } from '@/lib/faq';
+import { OG_IMAGE, SITE_URL, buildBreadcrumbSchema } from '@/lib/seo';
+import { COMPARISON, SNAPDROP_FAQ, TOOL_NOTES, WRONG_TOOL } from '@/lib/snapdrop';
+
+const PATH = '/snapdrop-alternative';
+const TITLE = 'Snapdrop Alternatives in 2026 — What Happened and What to Use Now';
+const DESCRIPTION =
+  'Snapdrop was sold and is no longer the tool it was. Here’s an honest comparison of PairDrop, LocalSend, Quick Share and Mubifiles, and which one fits your situation.';
+
+export const metadata: Metadata = {
+  title: TITLE,
+  description: DESCRIPTION,
+  alternates: { canonical: PATH },
+  openGraph: {
+    type: 'article',
+    url: `${SITE_URL}${PATH}`,
+    siteName: 'Mubifiles',
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [OG_IMAGE],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [OG_IMAGE.url],
+  },
+};
+
+export default function SnapdropAlternativePage() {
+  return (
+    <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-6 sm:px-6 sm:py-10">
+      <header className="flex items-center justify-between">
+        <Link href="/" className="flex items-center gap-2.5">
+          <LogoMark />
+          <div>
+            <p className="text-lg font-semibold leading-tight">Mubifiles</p>
+            <p className="text-xs text-muted-foreground">Phone to PC in seconds</p>
+          </div>
+        </Link>
+        <ThemeToggle />
+      </header>
+
+      <nav aria-label="Breadcrumb" className="mt-6 text-xs text-muted-foreground">
+        <ol className="flex items-center gap-1.5">
+          <li>
+            <Link href="/" className="hover:text-foreground">
+              Home
+            </Link>
+          </li>
+          <li aria-hidden="true">/</li>
+          <li aria-current="page" className="text-foreground">
+            Snapdrop alternatives
+          </li>
+        </ol>
+      </nav>
+
+      <main className="mt-4 grid gap-4 sm:gap-5">
+        <section className="glass card p-5 sm:p-6">
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+            Snapdrop alternatives in 2026
+          </h1>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
+            Snapdrop was, for years, the simplest way to move a file between two devices: open a
+            website on both, and they found each other. No install, no account. Then it changed
+            hands, and the tool most people remember is effectively gone.
+          </p>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
+            If you have arrived here because snapdrop.net stopped working, or because it no longer
+            feels like the thing you used to trust, this page explains what actually happened and
+            lays out the honest options — including where Mubifiles is the wrong choice.
+          </p>
+        </section>
+
+        <section className="glass card p-5 sm:p-6">
+          <h2 className="text-lg font-semibold">What happened to Snapdrop</h2>
+          <div className="mt-3 grid gap-3 text-sm leading-relaxed text-muted-foreground">
+            <p>
+              The original Snapdrop was an open-source project that paired devices over your local
+              network through the browser. In 2024 the snapdrop.net domain was sold to LimeWire. The
+              project&rsquo;s own maintainers now direct people elsewhere: the GitHub issue that sits
+              pinned on the repository states plainly that the site was sold and that PairDrop, built
+              on the original code, is the continuation.
+            </p>
+            <p>
+              The Android client that used to support it dropped snapdrop.net entirely, citing
+              concerns about the new owner&rsquo;s security and privacy practices, and now points
+              only at PairDrop.
+            </p>
+            <p>
+              Alongside that, uptime has been poor. Public status trackers carry a steady stream of
+              reports from people finding the site unreachable.
+            </p>
+            <p>
+              None of this means the original idea was bad. It means the address you remember is no
+              longer the project you remember.
+            </p>
+          </div>
+        </section>
+
+        {/* min-w-0: as a grid item this section would otherwise default to
+            min-width:auto and stretch to the table's width, widening the whole
+            page instead of letting the wrapper below scroll. */}
+        <section className="glass card min-w-0 p-5 sm:p-6">
+          <h2 className="text-lg font-semibold">The options, honestly compared</h2>
+
+          {/* Wide table: scrolls inside its own container so the page body
+              never scrolls sideways on a phone. */}
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[34rem] border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b border-border-contrast text-xs uppercase tracking-wide text-muted-foreground">
+                  <th scope="col" className="py-2 pr-3 font-medium">
+                    Tool
+                  </th>
+                  <th scope="col" className="py-2 pr-3 font-medium">
+                    Same Wi-Fi needed?
+                  </th>
+                  <th scope="col" className="py-2 pr-3 font-medium">
+                    Install?
+                  </th>
+                  <th scope="col" className="py-2 pr-3 font-medium">
+                    Account?
+                  </th>
+                  <th scope="col" className="py-2 font-medium">
+                    Best at
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {COMPARISON.map((row) => (
+                  <tr key={row.tool} className="border-b border-border-contrast/60 last:border-0">
+                    <th scope="row" className="py-3 pr-3 font-semibold">
+                      {row.isUs ? <span className="text-accent">{row.tool}</span> : row.tool}
+                    </th>
+                    <td className="py-3 pr-3 text-muted-foreground">{row.sameWifi}</td>
+                    <td className="py-3 pr-3 text-muted-foreground">{row.install}</td>
+                    <td className="py-3 pr-3 text-muted-foreground">{row.account}</td>
+                    <td className="py-3 text-muted-foreground">{row.bestAt}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-6 grid gap-5">
+            {TOOL_NOTES.map((tool) => (
+              <div key={tool.name}>
+                <h3 className="text-sm font-semibold">{tool.name}</h3>
+                {tool.body.map((para) => (
+                  <p key={para} className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                    {para}
+                  </p>
+                ))}
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                  <strong className="font-medium text-foreground">Choose it if</strong> {tool.chooseIt}
+                </p>
+              </div>
+            ))}
+
+            <div>
+              <h3 className="text-sm font-semibold">Mubifiles</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                Open the site on both devices, read a six-digit code off one, type it into the other.
+                Nothing to install, no account, and — the part that matters —{' '}
+                <strong className="font-medium text-foreground">
+                  no requirement that the two devices share a network.
+                </strong>{' '}
+                Your phone can be on mobile data while your laptop is on office Wi-Fi.
+              </p>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                It handles text as well as files, which is the case most of these tools treat as an
+                afterthought: a link, a password, an error message, a paragraph you want off your
+                phone and into an editor.
+              </p>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                Everything is deleted when the session closes.
+              </p>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                <strong className="font-medium text-foreground">Choose it if</strong> you want the
+                fastest possible start, you are sharing across different networks, or the thing you
+                are moving is text.{' '}
+                <Link
+                  href="/"
+                  className="font-medium text-accent underline underline-offset-2 hover:opacity-80"
+                >
+                  Try Mubifiles
+                </Link>
+                .
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="glass card p-5 sm:p-6">
+          <h2 className="text-lg font-semibold">When Mubifiles is the wrong tool</h2>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+            Worth saying clearly, because a comparison page that never recommends anyone else is not
+            a comparison page.
+          </p>
+          <ul className="mt-4 grid gap-3">
+            {WRONG_TOOL.map((item) => (
+              <li key={item.title} className="flex gap-3">
+                <span aria-hidden="true" className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  <strong className="font-medium text-foreground">{item.title}</strong> {item.body}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="glass card p-5 sm:p-6">
+          <h2 className="text-lg font-semibold">Frequently asked questions</h2>
+          <dl className="mt-4 grid gap-5">
+            {SNAPDROP_FAQ.map((item) => (
+              <div key={item.q}>
+                <dt className="text-sm font-medium">{item.q}</dt>
+                <dd className="mt-1 text-sm leading-relaxed text-muted-foreground">{item.a}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+
+        <section className="glass card p-5 text-center sm:p-6">
+          <h2 className="text-lg font-semibold">Try it now</h2>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            Open mubifiles.com on both devices. It takes about ten seconds.
+          </p>
+          <Link
+            href="/"
+            className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-accent-foreground shadow-lg shadow-accent/25 transition-all duration-200 hover:shadow-accent/40 hover:brightness-110 active:scale-[0.98]"
+          >
+            Start a session →
+          </Link>
+        </section>
+      </main>
+
+      <footer className="mt-8 text-center text-xs text-muted-foreground">
+        Files are deleted automatically when the session closes.
+      </footer>
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildFaqSchema(SNAPDROP_FAQ)) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(buildBreadcrumbSchema('Snapdrop alternatives', PATH)),
+        }}
+      />
+    </div>
+  );
+}

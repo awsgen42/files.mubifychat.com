@@ -1,9 +1,8 @@
 import type { Metadata, Viewport } from 'next';
-import { FAQ } from '@/lib/faq';
+import { OG_IMAGE, SITE_URL } from '@/lib/seo';
 import { themeBootstrapScript } from '@/lib/useTheme';
 import './globals.css';
 
-const SITE_URL = 'https://www.mubifiles.com';
 const TITLE = 'Mubifiles — instant file & text sharing between devices';
 const DESCRIPTION =
   'Move text and files between your phone and your PC in seconds. No app, no account — just a 6-digit code or a QR scan. Files are deleted automatically when the session closes.';
@@ -36,14 +35,7 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
     // Absolute rather than relative: some crawlers (WhatsApp notably) will not
     // resolve a relative og:image against the page URL.
-    images: [
-      {
-        url: `${SITE_URL}/og.png`,
-        width: 1200,
-        height: 630,
-        alt: 'Mubifiles — send files and text between your devices',
-      },
-    ],
+    images: [OG_IMAGE],
   },
   twitter: {
     // With an image attached, `summary` renders a small thumbnail; the
@@ -51,7 +43,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: TITLE,
     description: DESCRIPTION,
-    images: [`${SITE_URL}/og.png`],
+    images: [OG_IMAGE.url],
   },
 };
 
@@ -90,35 +82,17 @@ const structuredData = {
   ],
 };
 
-/**
- * FAQPage schema, built from the same constant the visible FAQ renders from,
- * so the answers cannot drift out of sync with the page.
- */
-const faqStructuredData = {
-  '@context': 'https://schema.org',
-  '@type': 'FAQPage',
-  mainEntity: FAQ.map((entry) => ({
-    '@type': 'Question',
-    name: entry.q,
-    acceptedAnswer: {
-      '@type': 'Answer',
-      text: entry.a,
-    },
-  })),
-};
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+        {/* WebApplication describes the product, so it belongs site-wide.
+            FAQPage does not: it is emitted per page, next to the questions it
+            describes, so a page can never advertise an FAQ it doesn't show. */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-        />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqStructuredData) }}
         />
       </head>
       <body>{children}</body>

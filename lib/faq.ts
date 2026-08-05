@@ -11,6 +11,26 @@ export interface FaqEntry {
   a: string;
 }
 
+/**
+ * Builds schema.org FAQPage JSON-LD from the same entries a page renders.
+ * Every page with an FAQ uses this — the schema must describe the questions
+ * visible on *that* page, so it is emitted per page rather than site-wide.
+ */
+export function buildFaqSchema(entries: readonly FaqEntry[]) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: entries.map((entry) => ({
+      '@type': 'Question',
+      name: entry.q,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: entry.a,
+      },
+    })),
+  };
+}
+
 export const FAQ: readonly FaqEntry[] = [
   {
     q: 'Do I need an account to send a file?',
