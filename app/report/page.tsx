@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import { ContentPageShell } from '@/components/ContentPageShell';
+import { ABUSE_EMAIL, IP_HANDLING, SESSION_HARD_LIMIT_HOURS, SESSION_IDLE_MINUTES } from '@/lib/policy';
 import { OG_IMAGE, SITE_URL } from '@/lib/seo';
 
 const PATH = '/report';
-const ABUSE_EMAIL = 'abuse@mubifiles.com';
 const TITLE = 'Report abuse — Mubifiles';
 const DESCRIPTION =
   'How to report content shared through Mubifiles, what to include so we can find it, and what we can and cannot tell you about who sent it.';
@@ -78,19 +78,18 @@ export default function ReportPage() {
       <section className="glass card p-5 sm:p-6">
         <h2 className="text-lg font-semibold">A note on timing</h2>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          Sessions close after about 15 minutes of inactivity, with a 24-hour hard limit. When a
-          session closes, everything in it is deleted automatically. In practice most reported
-          content is already gone before a report reaches us. That is not us declining to act — the
-          file genuinely no longer exists.
+          Sessions close after about {SESSION_IDLE_MINUTES} minutes of inactivity, with a{' '}
+          {SESSION_HARD_LIMIT_HOURS}-hour hard limit. When a session closes, everything in it is
+          deleted automatically. In practice most reported content is already gone before a report
+          reaches us. That is not us declining to act — the file genuinely no longer exists.
         </p>
       </section>
 
       <section className="glass card p-5 sm:p-6">
         <h2 className="text-lg font-semibold">Law enforcement</h2>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          We do not retain uploader identity. IP addresses are used transiently to rate-limit
-          requests and are not stored against uploads, so we cannot tell you who sent a file. There
-          is no log to hand over.
+          We do not retain uploader identity. {IP_HANDLING} We therefore cannot tell you who sent a
+          file.
         </p>
       </section>
     </ContentPageShell>

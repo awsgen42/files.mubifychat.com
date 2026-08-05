@@ -24,6 +24,16 @@ An optional one-time-download mode deletes a file after a single fetch.
   Why most browser transfer tools require both devices on one Wi-Fi, what client
   isolation is, and which tools work when the devices are on separate networks.
 
+## Policies
+
+- [Privacy](https://www.mubifiles.com/privacy/): What is stored, for how long, and
+  what is not collected. No accounts, no analytics, no cookies. Sub-processors are
+  Vercel and Cloudflare.
+- [Terms of use](https://www.mubifiles.com/terms/): Provided as-is with no
+  guaranteed availability; users are responsible for what they send.
+- [Report abuse](https://www.mubifiles.com/report/): How to report content, and
+  why we cannot identify who uploaded it.
+
 ## Notes
 
 - Mubifiles relays files through storage rather than connecting devices

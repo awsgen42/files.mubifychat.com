@@ -9,10 +9,18 @@ export function SiteFooter() {
   return (
     <footer className="mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs text-muted-foreground">
       <span>Files are deleted automatically when the session closes.</span>
-      <span aria-hidden="true">·</span>
-      <Link href="/report" className="underline underline-offset-2 hover:text-foreground">
-        Report abuse
-      </Link>
+      {[
+        { href: '/privacy', label: 'Privacy' },
+        { href: '/terms', label: 'Terms' },
+        { href: '/report', label: 'Report abuse' },
+      ].map((link) => (
+        <span key={link.href} className="flex items-center gap-x-3">
+          <span aria-hidden="true">·</span>
+          <Link href={link.href} className="underline underline-offset-2 hover:text-foreground">
+            {link.label}
+          </Link>
+        </span>
+      ))}
     </footer>
   );
 }
