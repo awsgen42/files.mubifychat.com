@@ -3,11 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SessionView } from '@/shared/types';
 import { ApiError, api, uploadFile } from './api';
+import { POLL_ACTIVE_MS, POLL_IDLE_AFTER_MS, POLL_IDLE_MS, SPEED_WINDOW_MS } from './tuning';
 
 const STORAGE_KEY = 'mubifiles.session';
-const POLL_INTERVAL_MS = 2000;
-/** Progress speed is averaged over this window so the readout doesn't jitter. */
-const SPEED_WINDOW_MS = 3000;
 
 export interface Transfer {
   itemId: string;
@@ -73,6 +71,17 @@ export function useShareSession(): ShareSession {
   const credentialsRef = useRef<Credentials | null>(null);
   credentialsRef.current = credentials;
 
+  /**
+   * When the session last changed. Drives the poll interval: a session that is
+   * being used stays on the fast cadence, one sitting untouched backs off.
+   * Local actions bump it too, so sending something resumes fast polling
+   * immediately rather than waiting for the next slow tick.
+   */
+  const lastChangeRef = useRef<number>(Date.now());
+  const markActive = useCallback(() => {
+    lastChangeRef.current = Date.now();
+  }, []);
+
   const reset = useCallback(() => {
     storeCredentials(null);
     setCredentials(null);
@@ -95,14 +104,33 @@ export function useShareSession(): ShareSession {
       .finally(() => setReady(true));
   }, [reset]);
 
-  /** Poll for the other device joining and for new items. */
+  /**
+   * Poll for the other device joining and for new items.
+   *
+   * Uses a self-scheduling timeout rather than setInterval so the cadence can
+   * vary: fast while something is happening, slower once the session has been
+   * quiet, which is the common case of a code sitting on screen waiting to be
+   * typed in elsewhere.
+   */
   useEffect(() => {
     if (!credentials) return;
     let cancelled = false;
+    let timer: number | undefined;
     let controller: AbortController | null = null;
+    let lastVersion = -1;
 
-    const poll = async () => {
-      if (cancelled || document.visibilityState === 'hidden') return;
+    const schedule = () => {
+      if (cancelled) return;
+      const quietFor = Date.now() - lastChangeRef.current;
+      timer = window.setTimeout(run, quietFor > POLL_IDLE_AFTER_MS ? POLL_IDLE_MS : POLL_ACTIVE_MS);
+    };
+
+    const run = async () => {
+      if (cancelled) return;
+      // Keep the timer alive while backgrounded but skip the request; the
+      // visibility handler fires an immediate poll on return.
+      if (document.visibilityState === 'hidden') return schedule();
+
       const current = credentialsRef.current;
       if (!current) return;
 
@@ -110,26 +138,40 @@ export function useShareSession(): ShareSession {
       controller = new AbortController();
       try {
         const next = await api.getSession(current.code, current.token, controller.signal);
-        if (!cancelled) setSession(next);
+        if (cancelled) return;
+        if (next.version !== lastVersion) {
+          lastVersion = next.version;
+          lastChangeRef.current = Date.now();
+        }
+        setSession(next);
       } catch (err) {
-        // A 404/401 means the session is gone for good; anything else is
-        // transient (offline, aborted poll) and worth retrying silently.
+        // A 404/401 means the session is gone for good. Everything else —
+        // offline, an aborted poll, a 429 from the poll limiter — is transient
+        // and simply retried on the next tick.
         if (!cancelled && err instanceof ApiError && (err.status === 404 || err.status === 401)) {
           setError('This session has ended or expired.');
           reset();
+          return;
         }
       }
+      schedule();
     };
 
-    const interval = window.setInterval(poll, POLL_INTERVAL_MS);
-    document.addEventListener('visibilitychange', poll);
-    void poll();
+    const onVisibility = () => {
+      if (cancelled || document.visibilityState !== 'visible') return;
+      lastChangeRef.current = Date.now();
+      window.clearTimeout(timer);
+      void run();
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    void run();
 
     return () => {
       cancelled = true;
       controller?.abort();
-      window.clearInterval(interval);
-      document.removeEventListener('visibilitychange', poll);
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [credentials, reset]);
 
@@ -149,24 +191,26 @@ export function useShareSession(): ShareSession {
     (oneShot: boolean) =>
       run(async () => {
         const result = await api.createSession(oneShot);
+        markActive();
         const next = { code: result.code, token: result.token };
         storeCredentials(next);
         setCredentials(next);
         setSession(result.session);
       }),
-    [run],
+    [markActive, run],
   );
 
   const join = useCallback(
     (code: string) =>
       run(async () => {
         const result = await api.joinSession(code);
+        markActive();
         const next = { code: result.code, token: result.token };
         storeCredentials(next);
         setCredentials(next);
         setSession(result.session);
       }),
-    [run],
+    [markActive, run],
   );
 
   const sendText = useCallback(
@@ -174,9 +218,10 @@ export function useShareSession(): ShareSession {
       run(async () => {
         const current = credentialsRef.current;
         if (!current) throw new Error('No active session.');
+        markActive();
         setSession(await api.sendText(current.code, current.token, text));
       }),
-    [run],
+    [markActive, run],
   );
 
   const sendFiles = useCallback(
@@ -184,6 +229,7 @@ export function useShareSession(): ShareSession {
       run(async () => {
         const current = credentialsRef.current;
         if (!current) throw new Error('No active session.');
+        markActive();
 
         // Sequential rather than parallel: one honest progress bar at a time,
         // and it keeps a phone's upstream from being split across transfers.
@@ -227,7 +273,7 @@ export function useShareSession(): ShareSession {
           }
         }
       }),
-    [run],
+    [markActive, run],
   );
 
   const end = useCallback(

@@ -15,6 +15,19 @@
     "not_found_handling": "404-page"
   },
 
+  // Guards the polled session-state endpoint. Cloudflare's native limiter is
+  // used here rather than the KV counter in worker/ratelimit.ts because this
+  // route runs every few seconds per device: a KV write per request would cost
+  // far more than the traffic it is protecting. Counted per colo, not globally.
+  // Tune `limit` alongside POLL_ACTIVE_MS in lib/tuning.ts.
+  "ratelimits": [
+    {
+      "name": "POLL_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 60, "period": 60 }
+    }
+  ],
+
   // Session metadata: code -> session document, with a sliding TTL.
   "kv_namespaces": [
     {

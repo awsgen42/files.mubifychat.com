@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { contentDisposition, normalizeContentType, sanitizeFilename } from '../worker/files';
 import { generateCode, isValidCode, normalizeCode, timingSafeEqual } from '../worker/ids';
 import { idleExpiresAt, isExpired, sessionIdFromObjectKey, ttlSeconds, type StoredSession } from '../worker/session';
-import type { Config } from '../worker/env';
+import type { Config, Env } from '../worker/env';
+import { enforcePollLimit } from '../worker/ratelimit';
 
 const config: Config = {
   idleTtlSeconds: 900,
@@ -131,5 +132,50 @@ describe('garbage collection keys', () => {
   it('recovers the session id from an object key', () => {
     expect(sessionIdFromObjectKey('sessions/abc123/def456')).toBe('abc123');
     expect(sessionIdFromObjectKey('sessions/')).toBe('');
+  });
+});
+
+describe('poll rate limit', () => {
+  const envWith = (results: boolean[]) => {
+    const calls: string[] = [];
+    let i = 0;
+    return {
+      calls,
+      env: {
+        POLL_LIMITER: {
+          limit: async ({ key }: { key: string }) => {
+            calls.push(key);
+            return { success: results[i++] ?? true };
+          },
+        },
+      } as unknown as Env,
+    };
+  };
+
+  it('allows a request the limiter accepts', async () => {
+    const { env, calls } = envWith([true]);
+    await expect(enforcePollLimit(env, '203.0.113.9')).resolves.toBeUndefined();
+    expect(calls).toEqual(['203.0.113.9']);
+  });
+
+  it('rejects with 429 once the limiter refuses', async () => {
+    const { env } = envWith([false]);
+    await expect(enforcePollLimit(env, '203.0.113.9')).rejects.toMatchObject({
+      status: 429,
+      code: 'rate_limited',
+    });
+  });
+
+  it('keys the limit on the client IP, so one abuser cannot lock out others', async () => {
+    const { env, calls } = envWith([true, true]);
+    await enforcePollLimit(env, '203.0.113.1');
+    await enforcePollLimit(env, '203.0.113.2');
+    expect(calls).toEqual(['203.0.113.1', '203.0.113.2']);
+  });
+
+  it('skips the limiter when the IP is unknown rather than failing closed', async () => {
+    const { env, calls } = envWith([false]);
+    await expect(enforcePollLimit(env, 'unknown')).resolves.toBeUndefined();
+    expect(calls).toEqual([]);
   });
 });

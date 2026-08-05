@@ -1,7 +1,16 @@
+/**
+ * Cloudflare's native rate limiter. Enforced in-colo and costs no KV
+ * operations, which is what makes it usable on a high-frequency route.
+ */
+export interface RateLimiterBinding {
+  limit(options: { key: string }): Promise<{ success: boolean }>;
+}
+
 export interface Env {
   SESSIONS: KVNamespace;
   FILES: R2Bucket;
   ASSETS: Fetcher;
+  POLL_LIMITER: RateLimiterBinding;
 
   SESSION_IDLE_TTL_SECONDS: string;
   SESSION_MAX_TTL_SECONDS: string;

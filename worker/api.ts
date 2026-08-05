@@ -19,7 +19,7 @@ import {
   unauthorized,
 } from './http';
 import { isValidCode, randomId } from './ids';
-import { LIMITS, enforceRateLimit } from './ratelimit';
+import { LIMITS, enforceRateLimit, enforcePollLimit } from './ratelimit';
 import { presignUpload } from './presign';
 import {
   authenticate,
@@ -129,6 +129,7 @@ async function joinRoute(ctx: Ctx, code: string): Promise<Response> {
  * session that is being actively watched from timing out mid-transfer.
  */
 async function stateRoute(ctx: Ctx, code: string): Promise<Response> {
+  await enforcePollLimit(ctx.env, clientIp(ctx.request));
   const { session, role } = await requireAuth(ctx, code);
   const view = toView(session, ctx.config, role);
 
