@@ -98,10 +98,17 @@ mode there are no R2 S3 credentials, so uploads take the Worker-proxied path.
    npx wrangler kv namespace create SESSIONS
    npx wrangler kv namespace create SESSIONS --preview
    npx wrangler r2 bucket create mubifiles
+   npx wrangler r2 bucket create mubifiles-preview
    ```
 
    Put the returned namespace ids into `wrangler.jsonc` in place of the
-   `REPLACE_WITH_...` placeholders.
+   `REPLACE_WITH_...` placeholders. All four resources are bound in
+   `wrangler.jsonc`, so all four have to exist — the preview pair is what
+   `wrangler dev --remote` uses.
+
+   This needs a Cloudflare API token with Workers KV Storage:Edit and Workers
+   R2 Storage:Edit. Nothing else in the project needs one, so issue it for the
+   task and revoke it afterwards rather than leaving it standing.
 
 2. **Optional: enable direct browser → R2 uploads.** Without these secrets the
    Worker proxies upload bodies, which works but is capped by the Workers
@@ -115,13 +122,13 @@ mode there are no R2 S3 credentials, so uploads take the Worker-proxied path.
    ```
 
    Uploads currently run through the Worker, so these are unset in production.
-If that changes, note that only the part PUTs need presigning: a multipart
-upload can be driven from either the Workers API or the S3 API, so it can still
-be created, completed and aborted on the binding as it is now. The client-side
-part loop, the resume manifest and the abort paths are transport-independent
-and carry over unchanged.
+   If that changes, note that only the part PUTs need presigning: a multipart
+   upload can be driven from either the Workers API or the S3 API, so it can
+   still be created, completed and aborted on the binding as it is now. The
+   client-side part loop, the resume manifest and the abort paths are
+   transport-independent and carry over unchanged.
 
-Presigned uploads are cross-origin, so the bucket also needs CORS
+   Presigned uploads are cross-origin, so the bucket also needs CORS
    (`wrangler r2 bucket cors put mubifiles --file cors.json`):
 
    ```json
