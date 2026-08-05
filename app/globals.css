@@ -199,3 +199,513 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Landing-page transfer demo (components/TransferDemo.tsx)
+
+   A miniature of the real UI: it reuses .glass, .card, .glass-input and the
+   accent utilities, so it re-themes with everything else rather than carrying
+   a parallel palette. Only the geometry below is its own.
+
+   Kept in globals.css rather than a co-located stylesheet so the declared
+   height lands in the same render-blocking sheet as everything else — the
+   reserved space has to exist before first paint or the demo reintroduces the
+   layout shift we removed from this page.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Height is declared, not derived from content, so the space is reserved by
+   the stylesheet before paint. Nothing can shift. Both values were tuned by
+   rendering; they are not a ratio and must not become one. */
+.mf-demo {
+  position: relative;
+  width: 100%;
+  height: 324px;
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  container-type: inline-size;
+}
+@media (max-width: 640px) {
+  .mf-demo {
+    height: 596px;
+  }
+}
+
+.mf-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 22px;
+  /* The geometry below was tuned against default line-height, not the 1.5 the
+     base layer sets on body. Inheriting 1.5 grows every small row by ~10% and
+     pushes the file row out of the computer screen. Rules that declare their
+     own line-height are unaffected. */
+  line-height: normal;
+}
+/* Stacked below 640px because the inner text is unreadable at phone width
+   side by side. Two layouts on purpose. */
+@media (max-width: 640px) {
+  .mf-stage {
+    flex-direction: column;
+    gap: 0;
+    padding: 18px;
+  }
+}
+
+/* ---------- device frames ---------- */
+.mf-phone {
+  position: relative;
+  width: 186px;
+  height: 280px;
+  flex: none;
+  border-radius: 26px;
+  border: 1px solid var(--border);
+  background: var(--background);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.mf-phone::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 44px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--muted-foreground);
+  opacity: 0.4;
+}
+@media (max-width: 640px) {
+  .mf-phone {
+    width: 196px;
+    height: 300px;
+  }
+}
+
+.mf-pc {
+  position: relative;
+  width: 322px;
+  flex: none;
+}
+@media (max-width: 640px) {
+  .mf-pc {
+    width: 300px;
+  }
+}
+.mf-pc-win {
+  border-radius: 13px;
+  border: 1px solid var(--border);
+  background: var(--background);
+  overflow: hidden;
+}
+.mf-pc-bar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 11px;
+  border-bottom: 1px solid var(--border);
+}
+.mf-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted-foreground);
+  opacity: 0.38;
+}
+.mf-url {
+  margin-left: auto;
+  margin-right: auto;
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  color: var(--muted-foreground);
+  transform: translateX(-11px);
+}
+.mf-pc-screen {
+  position: relative;
+  height: 158px;
+  padding: 13px;
+  /* 158px was measured as the content box. Under the global border-box reset
+     the padding would eat into it, costing 26px and clipping the file row. */
+  box-sizing: content-box;
+}
+.mf-stand {
+  width: 78px;
+  height: 12px;
+  margin: 0 auto;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+.mf-base {
+  width: 150px;
+  height: 5px;
+  margin: 0 auto;
+  border-radius: 3px;
+  background: var(--surface-strong);
+}
+
+/* ---------- phone innards ---------- */
+.mf-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 15px 13px 0;
+  flex: none;
+}
+.mf-brand {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.15;
+}
+.mf-tag {
+  font-size: 8.5px;
+}
+.mf-body {
+  position: relative;
+  flex: 1;
+  margin-top: 10px;
+}
+.mf-slot {
+  position: absolute;
+  inset: 0 13px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.mf-h2 {
+  font-size: 11px;
+  font-weight: 600;
+  margin: 0;
+}
+.mf-p {
+  font-size: 9px;
+  line-height: 1.45;
+  margin: 3px 0 0;
+}
+.mf-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  border: 0;
+  border-radius: 11px;
+  padding: 8px 0;
+  margin-top: 10px;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 500;
+  box-shadow: 0 8px 22px -8px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.mf-opt {
+  display: flex;
+  gap: 7px;
+  padding: 7px;
+  margin-top: 9px;
+}
+.mf-box {
+  width: 9px;
+  height: 9px;
+  border-radius: 2.5px;
+  flex: none;
+  margin-top: 1px;
+  border: 1px solid var(--border);
+}
+.mf-opt-t {
+  font-size: 8.5px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.mf-opt-s {
+  font-size: 8px;
+  line-height: 1.35;
+  margin-top: 1px;
+}
+
+.mf-code {
+  font: 600 21px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-align: center;
+  margin: 0;
+  text-indent: 0.16em;
+}
+.mf-cap {
+  font-size: 8.5px;
+  letter-spacing: 0.11em;
+  text-align: center;
+  margin: 5px 0 0;
+}
+/* The plate stays white in both themes. Scanners need a light background —
+   this is not a theming oversight. */
+.mf-qr {
+  width: 88px;
+  height: 88px;
+  margin: 11px auto 0;
+  border-radius: 9px;
+  background: #fff;
+  padding: 7px;
+  box-sizing: border-box;
+}
+.mf-qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.mf-scan {
+  font-size: 8.5px;
+  text-align: center;
+  margin: 7px 0 0;
+}
+
+/* ---------- pc innards ---------- */
+.mf-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.mf-input {
+  position: relative;
+  flex: 1;
+  padding: 9px 12px;
+  text-align: center;
+  font: 600 17px/1 var(--font-mono);
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  transition: border-color 0.5s;
+}
+.mf-digit {
+  opacity: 0;
+}
+.mf-caret {
+  display: inline-block;
+  width: 1.5px;
+  height: 16px;
+  vertical-align: -3px;
+  background: var(--accent);
+  margin-left: 1px;
+}
+.mf-connect {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 11px;
+  padding: 8px 11px;
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.mf-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 11px;
+  font-size: 10px;
+}
+.mf-led {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.mf-file {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 9px;
+  padding: 8px 10px;
+  border-radius: 11px;
+  font-size: 10px;
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
+}
+.mf-saved {
+  margin-left: auto;
+  font-size: 8.5px;
+  letter-spacing: 0.11em;
+}
+
+/* ---------- the wire ---------- */
+/* The only element allowed to give: between 641px and 659px the two device
+   frames plus a full-width wire are wider than the column, and with `flex:
+   none` the frames were clipped by up to 10px a side. The wire is a spacer, so
+   it absorbs the shortfall instead — the frames keep their tuned dimensions
+   and the layout switch stays at 640px. */
+.mf-wire {
+  position: relative;
+  width: 104px;
+  height: 1.5px;
+  flex: 0 1 auto;
+  min-width: 0;
+  background: linear-gradient(90deg, var(--accent), var(--accent));
+  transform-origin: left center;
+}
+@media (max-width: 640px) {
+  .mf-wire {
+    width: 1.5px;
+    height: 30px;
+    flex: none;
+    transform-origin: center top;
+  }
+}
+
+/* ---------- resting state = the end of the story ----------
+   Session connected, file delivered. Held deliberately: with reduced motion
+   the demo never animates, so the still frame has to be the frame that
+   communicates the outcome. */
+.mf-send {
+  opacity: 0;
+}
+.mf-reveal {
+  opacity: 1;
+}
+.mf-wire {
+  transform: scaleX(1);
+}
+@media (max-width: 640px) {
+  .mf-wire {
+    transform: scaleY(1);
+  }
+}
+.mf-digit {
+  opacity: 1;
+}
+.mf-caret {
+  opacity: 0;
+}
+.mf-input {
+  border-color: var(--accent);
+}
+.mf-status,
+.mf-file {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mf-send {
+    animation: mf-send 12s linear infinite;
+  }
+  .mf-btn {
+    animation: mf-tap 12s linear infinite;
+  }
+  .mf-reveal {
+    animation: mf-reveal 12s linear infinite;
+  }
+  .mf-qrpop {
+    animation: mf-qrpop 12s cubic-bezier(0.34, 1.42, 0.5, 1) infinite;
+  }
+  .mf-wire {
+    animation: mf-wireW 12s linear infinite;
+  }
+  .mf-d1 {
+    animation: mf-digit 12s linear infinite;
+  }
+  .mf-d2 {
+    animation: mf-digit 12s linear infinite;
+    animation-delay: 0.13s;
+  }
+  .mf-d3 {
+    animation: mf-digit 12s linear infinite;
+    animation-delay: 0.26s;
+  }
+  .mf-d4 {
+    animation: mf-digit 12s linear infinite;
+    animation-delay: 0.39s;
+  }
+  .mf-d5 {
+    animation: mf-digit 12s linear infinite;
+    animation-delay: 0.52s;
+  }
+  .mf-d6 {
+    animation: mf-digit 12s linear infinite;
+    animation-delay: 0.65s;
+  }
+  .mf-caret {
+    animation: mf-caret 12s linear infinite;
+  }
+  .mf-input {
+    animation: mf-lit 12s linear infinite;
+  }
+  .mf-status {
+    animation: mf-late 12s linear infinite;
+  }
+  .mf-file {
+    animation: mf-last 12s linear infinite;
+  }
+  @media (max-width: 640px) {
+    .mf-wire {
+      animation: mf-wireH 12s linear infinite;
+    }
+  }
+}
+
+/* 12s loop — 1% = 120ms
+   0–6    the send card sits, then the button is pressed
+   6–16   code and QR resolve
+   16–27  the wire draws
+   27–42  digits land, caret leading
+   42–49  field lights, session linked
+   49–72  the file arrives
+   72–92  hold
+   92–100 fade back                                                          */
+@keyframes mf-send {
+  0%, 5% { opacity: 1; }
+  8%, 91% { opacity: 0; }
+  97%, 100% { opacity: 1; }
+}
+@keyframes mf-tap {
+  0%, 2.5% { transform: scale(1); }
+  4.5% { transform: scale(0.97); }
+  6%, 100% { transform: scale(1); }
+}
+@keyframes mf-reveal {
+  0%, 8% { opacity: 0; }
+  16%, 91% { opacity: 1; }
+  97%, 100% { opacity: 0; }
+}
+@keyframes mf-qrpop {
+  0%, 9% { transform: scale(0.88); }
+  12.5% { transform: scale(1.04); }
+  16%, 100% { transform: scale(1); }
+}
+@keyframes mf-wireW {
+  0%, 17% { transform: scaleX(0); }
+  27%, 91% { transform: scaleX(1); }
+  97%, 100% { transform: scaleX(0); }
+}
+@keyframes mf-wireH {
+  0%, 17% { transform: scaleY(0); }
+  27%, 91% { transform: scaleY(1); }
+  97%, 100% { transform: scaleY(0); }
+}
+@keyframes mf-digit {
+  0%, 28% { opacity: 0; }
+  35%, 91% { opacity: 1; }
+  97%, 100% { opacity: 0; }
+}
+@keyframes mf-caret {
+  0%, 27% { opacity: 0; }
+  28%, 41% { opacity: 1; }
+  42%, 100% { opacity: 0; }
+}
+@keyframes mf-lit {
+  0%, 41% { border-color: var(--border-contrast); }
+  45%, 91% { border-color: var(--accent); }
+  97%, 100% { border-color: var(--border-contrast); }
+}
+@keyframes mf-late {
+  0%, 43% { opacity: 0; }
+  49%, 91% { opacity: 1; }
+  97%, 100% { opacity: 0; }
+}
+@keyframes mf-last {
+  0%, 66% { opacity: 0; }
+  72%, 91% { opacity: 1; }
+  97%, 100% { opacity: 0; }
+}

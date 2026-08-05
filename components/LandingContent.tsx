@@ -5,6 +5,7 @@
  */
 import Link from 'next/link';
 import { FAQ, buildFaqSchema } from '@/lib/faq';
+import { TransferDemo } from './TransferDemo';
 
 const STEPS = [
   {
@@ -35,6 +36,11 @@ export function LandingContent() {
           the session closes.
         </p>
       </section>
+
+      {/* Sits between the headline and the steps because it illustrates the
+          steps — the reader sees the shape of the thing before reading how to
+          do it. Its height is fixed in CSS, so it reserves its own space. */}
+      <TransferDemo />
 
       <section className="glass card p-5 sm:p-6">
         <h2 className="text-lg font-semibold">How it works</h2>
