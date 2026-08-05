@@ -42,9 +42,13 @@ export default function Home() {
   }, [share.session]);
 
   return (
-    // Widens only at lg, where the app area splits into two columns. Below
-    // that the shell is exactly what it was.
-    <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-6 sm:px-6 sm:py-10 lg:max-w-6xl">
+    // The only container on the page. Header, app area, marketing block and
+    // footer are all direct children, so every block shares one left and right
+    // edge at every width — the thing that was broken when the marketing block
+    // carried a narrower max-width of its own and the page stepped inward
+    // partway down. Prose is kept readable by capping paragraphs inside the
+    // cards, not by narrowing the cards.
+    <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-6 sm:px-6 sm:py-10 lg:max-w-5xl">
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <LogoMark />

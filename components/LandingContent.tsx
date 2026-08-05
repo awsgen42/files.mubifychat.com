@@ -24,14 +24,14 @@ const STEPS = [
 
 export function LandingContent() {
   return (
-    /* Pinned to the width it had before the shell widened at lg: 45rem is
-       48rem (max-w-3xl) minus the shell's 3rem of padding. Prose past ~95
-       characters a line gets harder to read, not easier, and the demo's
-       fixed geometry is sized against this width. A no-op below lg, where
-       the shell is already narrower than this. */
-    <div className="mx-auto mt-10 grid w-full max-w-[45rem] gap-4 sm:mt-12 sm:gap-5">
+    /* No max-width of its own: it fills the page container so its edges line
+       up with the app area above it. Line length is held in check per
+       paragraph instead. At lg the top margin drops to the same 24px used
+       between every other block, so the app area and the marketing block are
+       not separated by a bigger gap than anything else on the page. */
+    <div className="mt-10 grid gap-4 sm:mt-12 sm:gap-5 lg:mt-6 lg:gap-6">
       <section className="glass card p-5 sm:p-6">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+        <h1 className="max-w-3xl text-2xl font-semibold tracking-tight sm:text-3xl">
           Send files and text between your phone and your PC — instantly
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
@@ -60,7 +60,7 @@ export function LandingContent() {
               </span>
               <div className="min-w-0">
                 <h3 className="text-sm font-medium">{step.title}</h3>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
+                <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">{step.body}</p>
               </div>
             </li>
           ))}
@@ -73,12 +73,12 @@ export function LandingContent() {
           {FAQ.map((item) => (
             <div key={item.q}>
               <dt className="text-sm font-medium">{item.q}</dt>
-              <dd className="mt-1 text-sm leading-relaxed text-muted-foreground">{item.a}</dd>
+              <dd className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">{item.a}</dd>
             </div>
           ))}
         </dl>
 
-        <p className="mt-5 text-sm text-muted-foreground">
+        <p className="mt-5 max-w-2xl text-sm text-muted-foreground">
           Moved here from another tool? See our rundown of{' '}
           <Link
             href="/snapdrop-alternative"

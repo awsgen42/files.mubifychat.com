@@ -554,6 +554,18 @@
     transform-origin: center top;
   }
 }
+/* Only from the width at which the page container widens and the demo box
+   grows with it. The device frames are fixed, so without this they sit
+   marooned in the middle of a much wider box — but below this the box is the
+   size it always was, and spreading them would move a layout that is already
+   right. Capped so they never drift far enough apart to stop reading as
+   connected. */
+@media (min-width: 64rem) {
+  .mf-wire {
+    flex: 1 1 auto;
+    max-width: 190px;
+  }
+}
 
 /* ---------- resting state = the end of the story ----------
    Session connected, file delivered. Held deliberately: with reduced motion

@@ -7,7 +7,7 @@ import Link from 'next/link';
  */
 export function SiteFooter() {
   return (
-    <footer className="mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs text-muted-foreground">
+    <footer className="mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs text-muted-foreground lg:mt-6">
       <span>Files are deleted automatically when the session closes.</span>
       {[
         { href: '/privacy', label: 'Privacy' },

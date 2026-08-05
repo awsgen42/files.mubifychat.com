@@ -66,7 +66,10 @@ export function StartScreen({ busy, initialCode, onCreate, onJoin }: StartScreen
   );
 
   const receive = (
-    <Card>
+    // Centred at lg only: the two cards form one equal-height band there, and
+    // Receive has less to say than Send, so top-aligning it would leave a void
+    // under it. Below lg the cards are their own height and this is a no-op.
+    <Card className="lg:flex lg:flex-col lg:justify-center">
       <h2 className="text-base font-semibold">{RECEIVE_HEADING}</h2>
       <p className="mt-1 text-sm text-muted-foreground">{RECEIVE_BODY}</p>
 

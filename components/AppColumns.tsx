@@ -27,11 +27,24 @@ export type ColumnArrangement =
   /** A narrow reference rail beside a wider working area. */
   | 'rail-left';
 
-const SPANS: Record<ColumnArrangement, { lead: string; trail: string }> = {
-  even: { lead: 'lg:col-span-6', trail: 'lg:col-span-6' },
+interface Arrangement {
+  lead: string;
+  trail: string;
+  /**
+   * Whether the two columns form one band of equal height. True for `even`,
+   * where two cards of equal standing sitting at different heights read as a
+   * broken row rather than a pair; false for the rail, where a short reference
+   * panel stretched to match a long working column would just be a tall empty
+   * box.
+   */
+  equalHeight: boolean;
+}
+
+const SPANS: Record<ColumnArrangement, Arrangement> = {
+  even: { lead: 'lg:col-span-6', trail: 'lg:col-span-6', equalHeight: true },
   // 5/12 is the narrowest the code panel reads well at once it stacks; below
   // that the session code itself starts to crowd the panel.
-  'rail-left': { lead: 'lg:col-span-5', trail: 'lg:col-span-7' },
+  'rail-left': { lead: 'lg:col-span-5', trail: 'lg:col-span-7', equalHeight: false },
 };
 
 interface AppColumnsProps {
@@ -42,12 +55,14 @@ interface AppColumnsProps {
 
 export function AppColumns({ arrangement, lead, trail }: AppColumnsProps) {
   const spans = SPANS[arrangement];
+  // content-start keeps cards at their natural height; without it a short
+  // column stretches its cards to match the taller one. Which of those is
+  // wanted depends on the arrangement — see Arrangement.equalHeight.
+  const fill = spans.equalHeight ? 'content-start lg:content-stretch' : 'content-start';
   return (
     <div className="grid gap-4 sm:gap-5 lg:grid-cols-12 lg:gap-6">
-      {/* content-start so a short column keeps its cards at their natural
-          height instead of stretching them to match the taller one. */}
-      <div className={cx('grid content-start gap-4 sm:gap-5', spans.lead)}>{lead}</div>
-      <div className={cx('grid content-start gap-4 sm:gap-5', spans.trail)}>{trail}</div>
+      <div className={cx('grid gap-4 sm:gap-5 lg:gap-6', fill, spans.lead)}>{lead}</div>
+      <div className={cx('grid gap-4 sm:gap-5 lg:gap-6', fill, spans.trail)}>{trail}</div>
     </div>
   );
 }
