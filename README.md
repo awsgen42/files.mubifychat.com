@@ -136,16 +136,18 @@ Presigned uploads are cross-origin, so the bucket also needs CORS
    ]
    ```
 
-3. **Add two lifecycle rules.** R2 dashboard → the bucket → Settings → Object
-   lifecycle rules. These are different actions, not alternatives — add both.
+3. **Lifecycle rules.** R2 dashboard → the bucket → Settings → Object lifecycle
+   rules. These are different actions, not alternatives — both are needed.
 
    | Rule | Prefix | Action | After |
    |---|---|---|---|
-   | `expire-session-objects` | `sessions/` | Delete objects | 1 day |
+   | `expire-session-objects` | `sessions/` | Delete objects | 2 days |
    | `abort-incomplete-multipart` | `sessions/` | Abort incomplete multipart uploads | 2 days |
 
-   The first is a backstop in case the cron job stops running, matching the 24h
-   hard session cap.
+   The first is a backstop in case the cron job stops running. It is not the
+   primary deletion path — that is `purgeObjects` when a session ends and
+   `collectGarbage` every fifteen minutes — so its window only bounds how long
+   an orphan survives a broken cron.
 
    The second is **not optional**, and it is the only thing covering one case.
    The parts of an incomplete multipart upload are not objects: they never
@@ -156,10 +158,15 @@ Presigned uploads are cross-origin, so the bucket also needs CORS
    leaves no signal at all, and once the session document expires out of KV the
    uploadId is gone for good. Only this rule reclaims those.
 
-   2 days rather than 1 because a live session can be up to 24h old. A 1-day
-   rule sits exactly on that boundary and could abort an upload belonging to a
-   session that is still legitimately alive — a silent failure, and a miserable
-   one to debug. If the hard cap ever rises above 24h, raise this with it.
+   2 days rather than 1 for both, because a live session can be up to 24h old.
+   A 1-day rule sits exactly on that boundary: it could abort an upload, or
+   delete a file, belonging to a session that is still legitimately alive. Both
+   would fail silently and be miserable to debug. If the hard session cap ever
+   rises above 24h, raise both of these with it.
+
+   R2 also applies its own Default Multipart Abort Rule at 7 days. That is a
+   floor, not a substitute — 7 days of abandoned parts is far longer than a
+   session can live, so the 2-day rule above is what actually bounds it.
 
 4. **Deploy**
 
