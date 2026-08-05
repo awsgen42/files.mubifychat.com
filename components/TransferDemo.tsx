@@ -14,6 +14,11 @@
  * Accessibility: the whole figure carries one label and the stage inside is
  * hidden. To a screen reader this is a single image with a sentence of alt
  * text — labelling the parts would narrate a cartoon.
+ *
+ * For the same reason the card titles are <p>, not <h2>, despite reproducing
+ * headings from the real UI. They are a picture of a heading. Marking them up
+ * as one would put every title in this figure into the page's outline a second
+ * time, competing with the real controls they depict.
  */
 import {
   CONNECT_ACTION,
@@ -50,7 +55,7 @@ export function TransferDemo() {
             {/* state A: the send card */}
             <div className="mf-slot mf-send">
               <section className="glass card" style={{ padding: 11 }}>
-                <h2 className="mf-h2">{SEND_HEADING}</h2>
+                <p className="mf-h2">{SEND_HEADING}</p>
                 <p className="mf-p text-muted-foreground">{SEND_BODY}</p>
                 <span className="glass-input mf-opt">
                   <span className="mf-box" />
@@ -96,7 +101,7 @@ export function TransferDemo() {
             </div>
             <div className="mf-pc-screen">
               <section className="glass card" style={{ padding: 12 }}>
-                <h2 className="mf-h2">{RECEIVE_HEADING}</h2>
+                <p className="mf-h2">{RECEIVE_HEADING}</p>
                 <p className="mf-p text-muted-foreground">{RECEIVE_BODY}</p>
                 <div className="mf-field">
                   <div className="glass-input mf-input">
