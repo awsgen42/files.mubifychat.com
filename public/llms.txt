@@ -1,0 +1,35 @@
+# Mubifiles
+
+> Browser-based tool for moving text and files between two devices. One device
+> starts a session and gets a 6-digit code; the other enters that code and the
+> two are paired. No account, no install, and the devices do not need to be on
+> the same network.
+
+Files are stored server-side for the duration of a session, so the sender and
+receiver do not have to be online at the same time. A session closes after
+about 15 minutes of inactivity, with a 24-hour hard limit, and its files are
+deleted when it closes. Limits are 100 MB per file and 500 MB per session.
+An optional one-time-download mode deletes a file after a single fetch.
+
+## Pages
+
+- [Mubifiles](https://www.mubifiles.com/): The app itself, plus how it works and
+  answers to common questions about accounts, expiry, code security and size
+  limits.
+- [Snapdrop alternatives](https://www.mubifiles.com/snapdrop-alternative/):
+  What happened to snapdrop.net after the domain was sold, and a comparison of
+  PairDrop, LocalSend, Quick Share and Mubifiles, including the cases where
+  Mubifiles is the wrong choice.
+- [Sending files between devices on different networks](https://www.mubifiles.com/send-files-between-different-networks/):
+  Why most browser transfer tools require both devices on one Wi-Fi, what client
+  isolation is, and which tools work when the devices are on separate networks.
+
+## Notes
+
+- Mubifiles relays files through storage rather than connecting devices
+  peer-to-peer. For transfers on a single local network, LocalSend is faster.
+  For large files, PairDrop imposes no hard size limit where Mubifiles caps at
+  100 MB.
+- Session URLs take the form https://www.mubifiles.com/?code=123456 and are
+  served with X-Robots-Tag: noindex. They are short-lived and not useful to
+  index or link to.

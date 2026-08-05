@@ -52,8 +52,15 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-1">
+          {/* aria-label because the text label is hidden below sm: without it
+              the button is icon-only and has no accessible name on mobile. */}
           {share.session && (
-            <Button variant="danger" onClick={() => void share.end()} disabled={share.busy}>
+            <Button
+              variant="danger"
+              onClick={() => void share.end()}
+              disabled={share.busy}
+              aria-label="End session"
+            >
               <PowerIcon />
               <span className="hidden sm:inline">End session</span>
             </Button>
@@ -75,10 +82,14 @@ export default function Home() {
         </div>
       )}
 
+      {/* No separate loading branch: a "Loading…" placeholder is a fraction of
+          StartScreen's height, so swapping it in on hydration shoved everything
+          below it down the page (CLS 0.32 on mobile). Rendering the real
+          StartScreen from the start reserves exactly the right space at every
+          viewport, with its controls disabled until the session restore
+          settles. It also means crawlers see the actual UI, not a spinner. */}
       <main className="mt-5 flex-1 sm:mt-6">
-        {!share.ready ? (
-          <p className="py-16 text-center text-sm text-muted-foreground">Loading…</p>
-        ) : share.session ? (
+        {share.session ? (
           <div className="grid gap-4 sm:gap-5">
             <CodePanel
               session={share.session}
@@ -97,7 +108,7 @@ export default function Home() {
           </div>
         ) : (
           <StartScreen
-            busy={share.busy}
+            busy={share.busy || !share.ready}
             initialCode={initialCode}
             onCreate={(oneShot) => void share.create(oneShot)}
             onJoin={(code) => void share.join(code)}
