@@ -24,6 +24,9 @@ export const metadata: Metadata = {
   // as separate pages.
   alternates: { canonical: '/' },
   robots: { index: true, follow: true },
+  verification: {
+    google: 'kEYztc7CjWwoB4GtD6Aos-eh-MtuVuNQtokdnfy-XkM',
+  },
   openGraph: {
     type: 'website',
     url: SITE_URL,
