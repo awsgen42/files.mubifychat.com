@@ -24,7 +24,12 @@ const STEPS = [
 
 export function LandingContent() {
   return (
-    <div className="mt-10 grid gap-4 sm:mt-12 sm:gap-5">
+    /* Pinned to the width it had before the shell widened at lg: 45rem is
+       48rem (max-w-3xl) minus the shell's 3rem of padding. Prose past ~95
+       characters a line gets harder to read, not easier, and the demo's
+       fixed geometry is sized against this width. A no-op below lg, where
+       the shell is already narrower than this. */
+    <div className="mx-auto mt-10 grid w-full max-w-[45rem] gap-4 sm:mt-12 sm:gap-5">
       <section className="glass card p-5 sm:p-6">
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
           Send files and text between your phone and your PC — instantly

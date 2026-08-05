@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CodePanel } from '@/components/CodePanel';
 import { Composer } from '@/components/Composer';
+import { AppColumns } from '@/components/AppColumns';
 import { AlertIcon, LogoMark, PowerIcon } from '@/components/Icons';
 import { ItemList } from '@/components/ItemList';
 import { LandingContent } from '@/components/LandingContent';
@@ -41,7 +42,9 @@ export default function Home() {
   }, [share.session]);
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-6 sm:px-6 sm:py-10">
+    // Widens only at lg, where the app area splits into two columns. Below
+    // that the shell is exactly what it was.
+    <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-6 sm:px-6 sm:py-10 lg:max-w-6xl">
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <LogoMark />
@@ -91,22 +94,34 @@ export default function Home() {
           settles. It also means crawlers see the actual UI, not a spinner. */}
       <main className="mt-5 flex-1 sm:mt-6">
         {share.session ? (
-          <div className="grid gap-4 sm:gap-5">
-            <CodePanel
-              session={share.session}
-              pairingUrl={pairingUrl}
-              qr={pairingUrl ? <QrCode value={pairingUrl} /> : null}
-            />
-            <Composer
-              busy={share.busy}
-              maxFileBytes={share.session.limits.maxFileBytes}
-              maxTextChars={share.session.limits.maxTextChars}
-              onSendText={(text) => void share.sendText(text)}
-              onSendFiles={(files) => void share.sendFiles(files)}
-            />
-            <TransferList transfers={share.transfers} onCancel={(id) => void share.cancelUpload(id)} />
-            <ItemList session={share.session} downloadUrl={share.downloadUrl} />
-          </div>
+          /* The code and QR are reference material once you have read them,
+             so they become a rail; the composer and the item list are what you
+             actually watch. TransferList belongs with the composer that starts
+             it — and has to be in that column anyway, since two stacked blocks
+             can only split the mobile order contiguously. */
+          <AppColumns
+            arrangement="rail-left"
+            lead={
+              <CodePanel
+                session={share.session}
+                pairingUrl={pairingUrl}
+                qr={pairingUrl ? <QrCode value={pairingUrl} /> : null}
+              />
+            }
+            trail={
+              <>
+                <Composer
+                  busy={share.busy}
+                  maxFileBytes={share.session.limits.maxFileBytes}
+                  maxTextChars={share.session.limits.maxTextChars}
+                  onSendText={(text) => void share.sendText(text)}
+                  onSendFiles={(files) => void share.sendFiles(files)}
+                />
+                <TransferList transfers={share.transfers} onCancel={(id) => void share.cancelUpload(id)} />
+                <ItemList session={share.session} downloadUrl={share.downloadUrl} />
+              </>
+            }
+          />
         ) : (
           <StartScreen
             busy={share.busy || !share.ready}

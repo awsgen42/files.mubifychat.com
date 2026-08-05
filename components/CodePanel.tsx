@@ -30,7 +30,10 @@ export function CodePanel({ session, pairingUrl, qr }: CodePanelProps) {
 
   return (
     <Card>
-      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+      {/* Stacks again inside the rail: `sm:flex-row` is a viewport query, so
+          without this the panel would try to lay out side by side in a 400px
+          column at a 1400px viewport. */}
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between lg:flex-col lg:items-stretch">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <Pill tone={paired ? 'success' : 'muted'}>
@@ -63,7 +66,7 @@ export function CodePanel({ session, pairingUrl, qr }: CodePanelProps) {
           </div>
         </div>
 
-        <div className="flex justify-center sm:justify-end">{qr}</div>
+        <div className="flex justify-center sm:justify-end lg:justify-center">{qr}</div>
       </div>
     </Card>
   );
