@@ -6,7 +6,7 @@ import type { UploadedPart } from '@/shared/types';
 import { partCount, partRange } from '@/shared/upload';
 import { ApiError, api, isRetryable, uploadFile, uploadPart } from './api';
 import { PART_RETRIES, PART_RETRY_BASE_MS, POLL_ACTIVE_MS, POLL_IDLE_AFTER_MS, POLL_IDLE_MS, SPEED_WINDOW_MS } from './tuning';
-import { beginUpload, findResumable, forgetSessionUploads, forgetUpload, recordPart } from './uploads';
+import { beginUpload, findResumable, forgetSessionUploads, forgetUpload, markPaused, recordPart } from './uploads';
 
 const STORAGE_KEY = 'mubifiles.session';
 
@@ -18,6 +18,14 @@ export interface Transfer {
   bytesPerSecond: number;
   secondsRemaining: number;
   error?: string;
+  /**
+   * 'pausing' means the part in flight is being allowed to finish. Aborting it
+   * would discard up to a part's worth of bytes the sender has already paid
+   * for on a metered connection — the opposite of what pause is for — and the
+   * part boundary is the only point at which progress becomes durable, since
+   * the etag does not exist until the part completes.
+   */
+  status?: 'pausing' | 'paused';
 }
 
 interface Credentials {
@@ -59,6 +67,11 @@ export interface ShareSession {
   sendFiles: (files: File[]) => Promise<void>;
   end: () => Promise<void>;
   cancelUpload: (itemId: string) => Promise<void>;
+  pauseUpload: (itemId: string) => void;
+  /** Abandons the part in flight rather than waiting for it to finish. */
+  stopNow: (itemId: string) => void;
+  resumeUpload: (itemId: string) => Promise<void>;
+  canResume: (itemId: string) => boolean;
   leave: () => void;
   downloadUrl: (itemId: string) => string;
 }
@@ -81,6 +94,18 @@ export function useShareSession(): ShareSession {
    * Local actions bump it too, so sending something resumes fast polling
    * immediately rather than waiting for the next slow tick.
    */
+  /** itemIds the user has asked to stop. Read by the upload loop between parts. */
+  const pauseRequests = useRef(new Set<string>());
+  /** AbortControllers for the part currently in flight, keyed by item. */
+  const partAborts = useRef(new Map<string, AbortController>());
+  /**
+   * The File behind a paused upload, so resuming needs no second trip through
+   * the file picker. It only survives while the tab does — a File is a handle
+   * into the local machine, not data we can persist — which is why closing the
+   * tab means choosing the file again.
+   */
+  const pausedFiles = useRef(new Map<string, File>());
+
   const lastChangeRef = useRef<number>(Date.now());
   const markActive = useCallback(() => {
     lastChangeRef.current = Date.now();
@@ -292,25 +317,71 @@ export function useShareSession(): ShareSession {
                 });
               }
 
+              // Starting or resuming clears any earlier pause, now that the
+              // itemId the pause was recorded against is resolved.
+              pauseRequests.current.delete(itemId);
+              pausedFiles.current.delete(itemId);
+              markPaused(itemId, false);
+
               const done = new Map<number, UploadedPart>(
                 (resumable?.parts ?? []).map((p) => [p.partNumber, p]),
               );
               const total = partCount(file.size, partSize);
 
+              let stopped = false;
               for (let n = 1; n <= total; n++) {
                 if (done.has(n)) continue;
+                // The pause takes effect here, between parts, so nothing that
+                // has already been sent is thrown away.
+                if (pauseRequests.current.has(itemId)) {
+                  stopped = true;
+                  break;
+                }
                 const { start, end } = partRange(n, file.size, partSize);
                 // Progress is anchored to completed parts, so a retried part
                 // rewinds only its own slice rather than the whole bar.
                 const base = done.size * partSize;
-                const part = await withRetries(() =>
-                  uploadPart(partsUrl, n, file.slice(start, end), current.token, ({ loaded }) =>
-                    report(base + loaded),
+                const controller = new AbortController();
+                partAborts.current.set(itemId, controller);
+                try {
+                  const part = await withRetries(() =>
+                    uploadPart(
+                      partsUrl,
+                      n,
+                      file.slice(start, end),
+                      current.token,
+                      ({ loaded }) => report(base + loaded),
+                      controller.signal,
+                    ),
+                  );
+                  done.set(n, part);
+                  recordPart(itemId, part);
+                  report(done.size * partSize);
+                } catch (err) {
+                  // A part abandoned by "Stop now" is a pause, not a failure.
+                  if (pauseRequests.current.has(itemId) && err instanceof ApiError && err.code === 'aborted') {
+                    stopped = true;
+                    report(done.size * partSize);
+                    break;
+                  }
+                  throw err;
+                } finally {
+                  partAborts.current.delete(itemId);
+                }
+              }
+
+              if (stopped) {
+                pauseRequests.current.delete(itemId);
+                pausedFiles.current.set(itemId, file);
+                markPaused(itemId, true);
+                setTransfers((list) =>
+                  list.map((t) =>
+                    t.itemId === itemId
+                      ? { ...t, status: 'paused', bytesPerSecond: 0, secondsRemaining: 0 }
+                      : t,
                   ),
                 );
-                done.set(n, part);
-                recordPart(itemId, part);
-                report(done.size * partSize);
+                return;
               }
 
               const manifest = [...done.values()].sort((a, b) => a.partNumber - b.partNumber);
@@ -331,6 +402,24 @@ export function useShareSession(): ShareSession {
     [markActive, run],
   );
 
+  /**
+   * Resume is the same path as a fresh send: sendFiles finds the stored
+   * manifest by file identity and skips the parts already in R2. The File
+   * comes from the paused-upload map when this tab is the one that paused it;
+   * a tab that has since reloaded has to be handed the file again.
+   */
+  const resumeUpload = useCallback(
+    (itemId: string) => {
+      const file = pausedFiles.current.get(itemId);
+      if (!file) return Promise.resolve();
+      return sendFiles([file]);
+    },
+    [sendFiles],
+  );
+
+  /** Whether resuming is a button or a trip through the file picker. */
+  const canResume = useCallback((itemId: string) => pausedFiles.current.has(itemId), []);
+
   const end = useCallback(
     () =>
       run(async () => {
@@ -348,11 +437,29 @@ export function useShareSession(): ShareSession {
         const current = credentialsRef.current;
         if (!current) return;
         forgetUpload(itemId);
+        pausedFiles.current.delete(itemId);
+        pauseRequests.current.delete(itemId);
         setTransfers((list) => list.filter((t) => t.itemId !== itemId));
         setSession(await api.cancelItem(current.code, current.token, itemId));
       }),
     [run],
   );
+
+  /**
+   * Asks the loop to stop at the next part boundary. Not immediate on purpose:
+   * see Transfer.status. The upload itself is untouched server-side — its
+   * parts stay, and only cancel aborts them.
+   */
+  const pauseUpload = useCallback((itemId: string) => {
+    pauseRequests.current.add(itemId);
+    setTransfers((list) => list.map((t) => (t.itemId === itemId ? { ...t, status: 'pausing' } : t)));
+  }, []);
+
+  /** For when finishing the current part would take longer than waiting is worth. */
+  const stopNow = useCallback((itemId: string) => {
+    pauseRequests.current.add(itemId);
+    partAborts.current.get(itemId)?.abort();
+  }, []);
 
   const leave = useCallback(() => {
     reset();
@@ -381,6 +488,10 @@ export function useShareSession(): ShareSession {
     sendFiles,
     end,
     cancelUpload,
+    pauseUpload,
+    stopNow,
+    resumeUpload,
+    canResume,
     leave,
     downloadUrl,
   };

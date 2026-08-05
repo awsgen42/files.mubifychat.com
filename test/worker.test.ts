@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { contentDisposition, normalizeContentType, sanitizeFilename } from '../worker/files';
 import { generateCode, isValidCode, normalizeCode, timingSafeEqual } from '../worker/ids';
-import { idleExpiresAt, isExpired, sessionIdFromObjectKey, ttlSeconds, type StoredSession } from '../worker/session';
+import {
+  UPLOAD_GRACE_SECONDS,
+  hasUploadInFlight,
+  idleExpiresAt,
+  isExpired,
+  sessionIdFromObjectKey,
+  ttlSeconds,
+  type StoredSession,
+} from '../worker/session';
 import type { Config, Env } from '../worker/env';
 import { enforcePollLimit } from '../worker/ratelimit';
 
@@ -177,5 +185,58 @@ describe('poll rate limit', () => {
     const { env, calls } = envWith([false]);
     await expect(enforcePollLimit(env, 'unknown')).resolves.toBeUndefined();
     expect(calls).toEqual([]);
+  });
+});
+
+describe('upload grace window', () => {
+  const pending = (uploadId?: string): StoredSession =>
+    session({
+      items: [
+        {
+          id: 'i1',
+          kind: 'file',
+          state: 'pending',
+          from: 'host',
+          createdAt: 0,
+          downloads: 0,
+          key: 'sessions/abc123/i1',
+          ...(uploadId ? { uploadId } : {}),
+        },
+      ],
+    });
+
+  it('holds a session open while an upload is in flight', () => {
+    const s = pending('upload-1');
+    expect(hasUploadInFlight(s)).toBe(true);
+    // The poller is what normally slides the window, and it stops while the
+    // tab is hidden — so this is what stops a paused or backgrounded upload
+    // starving the session it needs.
+    expect(idleExpiresAt(s, config)).toBe(s.lastActivity + UPLOAD_GRACE_SECONDS * 1000);
+    expect(ttlSeconds(s, config, s.lastActivity)).toBe(UPLOAD_GRACE_SECONDS);
+  });
+
+  it('applies to any pending upload, not only a deliberately paused one', () => {
+    // Nothing in the session records intent, and nothing needs to: a stalled
+    // upload on a locked phone needs the grace for the same reason.
+    expect(hasUploadInFlight(pending('upload-1'))).toBe(true);
+  });
+
+  it('ignores a pending item with no multipart upload behind it', () => {
+    const s = pending();
+    expect(hasUploadInFlight(s)).toBe(false);
+    expect(idleExpiresAt(s, config)).toBe(s.lastActivity + config.idleTtlSeconds * 1000);
+  });
+
+  it('leaves an ordinary session on the short window', () => {
+    const s = session();
+    expect(hasUploadInFlight(s)).toBe(false);
+    expect(idleExpiresAt(s, config)).toBe(s.lastActivity + config.idleTtlSeconds * 1000);
+  });
+
+  it('never lets the grace outlive the hard cap', () => {
+    const s = pending('upload-1');
+    s.hardExpiresAt = s.lastActivity + 60_000;
+    expect(idleExpiresAt(s, config)).toBe(s.hardExpiresAt);
+    expect(ttlSeconds(s, config, s.lastActivity)).toBe(60);
   });
 });

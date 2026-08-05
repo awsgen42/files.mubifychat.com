@@ -37,6 +37,34 @@ export interface StoredSession {
   items: StoredItem[];
 }
 
+/**
+ * How long a session survives inactivity while an upload is still in flight,
+ * instead of the usual idle window.
+ *
+ * Needed because the only thing that normally slides the window is the client
+ * polling, and the poller stops while the tab is hidden — so a phone that
+ * locks mid-upload, or one deliberately paused to wait for WiFi, would starve
+ * the session its own upload depends on. A keepalive cannot fix that: browsers
+ * throttle background timers, and iOS Safari suspends JavaScript outright when
+ * the tab is not in front. Moving the grace to the server means there is no
+ * timer to suspend.
+ *
+ * Two costs scale with this number, not one:
+ *
+ *   storage   parts and files of an abandoned upload are held this much
+ *             longer, bounded by the 24h hard cap and the bucket's 2-day
+ *             lifecycle rules.
+ *
+ *   codes     a pinned session also holds its 6-digit code for this long
+ *             rather than 15 minutes. Against a million-code space that is
+ *             nothing at present volume, but collision pressure rises with
+ *             both this value and the session rate, and generateCode retries
+ *             only 8 times before giving up.
+ *
+ * Sized for a commute, and 12x under the hard cap.
+ */
+export const UPLOAD_GRACE_SECONDS = 2 * 60 * 60;
+
 const KEY_PREFIX = 'session:';
 const ID_INDEX_PREFIX = 'sid:';
 /** KV rejects TTLs below 60 seconds. */
@@ -69,11 +97,25 @@ export function objectKey(session: StoredSession, itemId: string): string {
  */
 export function ttlSeconds(session: StoredSession, config: Config, now: number): number {
   const untilHardExpiry = Math.ceil((session.hardExpiresAt - now) / 1000);
-  return Math.max(MIN_KV_TTL, Math.min(config.idleTtlSeconds, untilHardExpiry));
+  return Math.max(MIN_KV_TTL, Math.min(idleWindowSeconds(session, config), untilHardExpiry));
+}
+
+/**
+ * Any upload still in flight earns the longer window — not just one the user
+ * deliberately paused. The server cannot tell those apart, and does not need
+ * to: a stalled upload on a locked phone needs the grace for exactly the same
+ * reason, and that case existed before pause did.
+ */
+export function hasUploadInFlight(session: StoredSession): boolean {
+  return session.items.some((item) => item.state === 'pending' && Boolean(item.uploadId));
+}
+
+function idleWindowSeconds(session: StoredSession, config: Config): number {
+  return hasUploadInFlight(session) ? Math.max(config.idleTtlSeconds, UPLOAD_GRACE_SECONDS) : config.idleTtlSeconds;
 }
 
 export function idleExpiresAt(session: StoredSession, config: Config): number {
-  return Math.min(session.lastActivity + config.idleTtlSeconds * 1000, session.hardExpiresAt);
+  return Math.min(session.lastActivity + idleWindowSeconds(session, config) * 1000, session.hardExpiresAt);
 }
 
 export function isExpired(session: StoredSession, config: Config, now: number): boolean {

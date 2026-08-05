@@ -22,6 +22,8 @@ const STORAGE_KEY = 'mubifiles.uploads';
 export interface UploadRecord {
   code: string;
   itemId: string;
+  /** Set when the user paused, so a returning tab says so rather than looking crashed. */
+  paused?: boolean;
   /** Identity of the file, so a resumed upload cannot be fed a different one. */
   name: string;
   size: number;
@@ -85,6 +87,13 @@ export function recordPart(itemId: string, part: UploadedPart): void {
   const parts = [...record.parts.filter((p) => p.partNumber !== part.partNumber), part];
   parts.sort((a, b) => a.partNumber - b.partNumber);
   write({ ...store, [itemId]: { ...record, parts } });
+}
+
+export function markPaused(itemId: string, paused: boolean): void {
+  const store = read();
+  const record = store[itemId];
+  if (!record) return;
+  write({ ...store, [itemId]: { ...record, paused } });
 }
 
 export function forgetUpload(itemId: string): void {

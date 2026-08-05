@@ -28,3 +28,10 @@ export const PART_RETRIES = 4;
 
 /** First backoff step; doubles each attempt, so 1s, 2s, 4s, 8s. */
 export const PART_RETRY_BASE_MS = 1_000;
+
+/**
+ * Below this, "Stop now" is not offered while pausing: the current part will
+ * be done before anyone could read the button, and one that appears for a
+ * moment and vanishes is worse than none.
+ */
+export const PAUSE_STOP_NOW_THRESHOLD_S = 5;

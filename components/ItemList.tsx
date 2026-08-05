@@ -68,6 +68,8 @@ export function ItemList({ session, downloadUrl, transfers, onCancel }: ItemList
 function pendingLabel(transfer: Transfer | undefined): string {
   if (!transfer) return 'Uploading…';
   if (transfer.error) return 'Upload failed';
+  if (transfer.status === 'paused') return 'Paused';
+  if (transfer.status === 'pausing') return 'Pausing…';
   if (transfer.total <= 0) return 'Uploading…';
   return `Uploading… ${Math.min(100, Math.round((transfer.loaded / transfer.total) * 100))}%`;
 }
