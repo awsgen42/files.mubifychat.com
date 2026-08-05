@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { SiteFooter } from '@/components/SiteFooter';
 
 export default function NotFound() {
   return (
@@ -13,6 +14,7 @@ export default function NotFound() {
       >
         Back to Mubifiles
       </Link>
+      <SiteFooter />
     </div>
   );
 }

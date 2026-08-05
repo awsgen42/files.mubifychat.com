@@ -2,13 +2,15 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { LogoMark } from '@/components/Icons';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { SiteFooter } from '@/components/SiteFooter';
 import { buildFaqSchema, type FaqEntry } from '@/lib/faq';
 import { buildBreadcrumbSchema } from '@/lib/seo';
 
 /**
  * Shared chrome for static content pages: header, breadcrumb, footer and the
  * per-page JSON-LD. The schema lives here rather than in the root layout so a
- * page only ever advertises the FAQ it actually renders.
+ * page only ever advertises the FAQ it actually renders — and a page without
+ * one, like /report, emits no FAQPage at all.
  */
 export function ContentPageShell({
   breadcrumbName,
@@ -18,7 +20,8 @@ export function ContentPageShell({
 }: {
   breadcrumbName: string;
   path: string;
-  faq: readonly FaqEntry[];
+  /** Omit on pages that have no FAQ; no FAQPage schema is emitted then. */
+  faq?: readonly FaqEntry[];
   children: ReactNode;
 }) {
   return (
@@ -50,14 +53,14 @@ export function ContentPageShell({
 
       <main className="mt-4 grid gap-4 sm:gap-5">{children}</main>
 
-      <footer className="mt-8 text-center text-xs text-muted-foreground">
-        Files are deleted automatically when the session closes.
-      </footer>
+      <SiteFooter />
 
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildFaqSchema(faq)) }}
-      />
+      {faq && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(buildFaqSchema(faq)) }}
+        />
+      )}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{

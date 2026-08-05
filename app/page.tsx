@@ -7,6 +7,7 @@ import { AlertIcon, LogoMark, PowerIcon } from '@/components/Icons';
 import { ItemList } from '@/components/ItemList';
 import { LandingContent } from '@/components/LandingContent';
 import { QrCode } from '@/components/QrCode';
+import { SiteFooter } from '@/components/SiteFooter';
 import { StartScreen } from '@/components/StartScreen';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { TransferList } from '@/components/TransferList';
@@ -121,9 +122,7 @@ export default function Home() {
           crawler receives, before any JavaScript runs. */}
       {!share.session && <LandingContent />}
 
-      <footer className="mt-8 text-center text-xs text-muted-foreground">
-        Files are deleted automatically when the session closes.
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
