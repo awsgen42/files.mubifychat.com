@@ -44,8 +44,15 @@ export const PRACTICAL_RULE: readonly { when: string; then: string }[] = [
     when: 'Same Wi-Fi but it’s public or corporate and the tools keep failing',
     then: 'use a relay-based tool instead; client isolation is fighting you',
   },
-  { when: 'Different networks, one-off', then: 'Mubifiles' },
-  { when: 'Different networks, your own devices, often', then: 'PairDrop pairing' },
+  { when: 'Different networks, one-off', then: 'Mubifiles, or a PairDrop public room' },
+  {
+    when: 'Different networks, both devices online together, large file',
+    then: 'PairDrop — peer-to-peer, no size cap',
+  },
+  {
+    when: 'Different networks, sender and receiver at different times',
+    then: 'Mubifiles — the file waits in storage',
+  },
   { when: 'You want to keep the file long-term', then: 'cloud storage' },
 ];
 

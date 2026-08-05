@@ -138,11 +138,24 @@ export default function SnapdropAlternativePage() {
               <h3 className="text-sm font-semibold">Mubifiles</h3>
               <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
                 Open the site on both devices, read a six-digit code off one, type it into the other.
-                Nothing to install, no account, and — the part that matters —{' '}
+                Nothing to install, no account.
+              </p>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                Working across networks is not the difference — PairDrop does that too, via public
+                rooms. The real one is that{' '}
                 <strong className="font-medium text-foreground">
-                  no requirement that the two devices share a network.
+                  Mubifiles stores what you send.
                 </strong>{' '}
-                Your phone can be on mobile data while your laptop is on office Wi-Fi.
+                PairDrop is peer-to-peer over WebRTC, so both devices have to be online at the same
+                moment, with both tabs open. Mubifiles puts the file in storage, so the sender can
+                upload and walk away; the receiver picks it up whenever they like inside the session
+                window.
+              </p>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                The second difference is how much you have to think about. PairDrop has three
+                connection modes — local network discovery, persistent pairing, and public rooms —
+                and which applies depends on where your devices happen to be. Mubifiles has one
+                path, a six-digit code, and it behaves the same way every time.
               </p>
               <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
                 It handles text as well as files, which is the case most of these tools treat as an
@@ -153,15 +166,16 @@ export default function SnapdropAlternativePage() {
                 Everything is deleted when the session closes.
               </p>
               <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                <strong className="font-medium text-foreground">Choose it if</strong> you want the
-                fastest possible start, you are sharing across{' '}
+                <strong className="font-medium text-foreground">Choose it if</strong> the sender and
+                receiver will not be at their devices at the same time, the thing you are moving is
+                text, or you simply want the fastest possible start. It works across{' '}
                 <Link
                   href="/send-files-between-different-networks"
                   className="font-medium text-accent underline underline-offset-2 hover:opacity-80"
                 >
                   different networks
-                </Link>
-                , or the thing you are moving is text.{' '}
+                </Link>{' '}
+                either way.{' '}
                 <Link
                   href="/"
                   className="font-medium text-accent underline underline-offset-2 hover:opacity-80"

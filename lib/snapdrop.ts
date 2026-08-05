@@ -25,15 +25,15 @@ export const COMPARISON: readonly ComparisonRow[] = [
     sameWifi: 'No',
     install: 'No',
     account: 'No',
-    bestAt: 'Any two networks, text + files, fastest to start',
+    bestAt: 'Sender and receiver at different times; text as well as files',
     isUs: true,
   },
   {
     tool: 'PairDrop',
-    sameWifi: 'Not if you pair devices first',
+    sameWifi: 'No — public room or pairing',
     install: 'No',
     account: 'No',
-    bestAt: 'The direct Snapdrop successor',
+    bestAt: 'The direct Snapdrop successor; peer-to-peer, no size cap',
   },
   {
     tool: 'LocalSend',
@@ -61,9 +61,11 @@ export const TOOL_NOTES: readonly ToolNote[] = [
   {
     name: 'PairDrop',
     body: [
-      'The closest thing to the Snapdrop you remember, because it is literally built from the same codebase by people who cared about the original. Browser-based, no install. It also added device pairing, which lets paired devices reach each other without sharing a network.',
+      'The closest thing to the Snapdrop you remember, because it is literally built from the same codebase by people who cared about the original. Browser-based, no install.',
+      'It is also more capable than Snapdrop was. Alongside local network discovery it works across networks two ways: persistent device pairing, and temporary public rooms — enter a five-letter code on both devices and they connect over the internet, with a TURN server bridging NAT automatically. The public room needs no setup at all, and neither route needs an account.',
     ],
-    chooseIt: 'you want the Snapdrop experience back and are happy to pair your devices once.',
+    chooseIt:
+      'you want the Snapdrop experience back, you are moving something large, or you would rather the file went straight device-to-device than through anyone else’s storage.',
   },
   {
     name: 'LocalSend',
@@ -86,6 +88,10 @@ export const WRONG_TOOL: readonly { title: string; body: string }[] = [
   {
     title: 'Multi-gigabyte files on your own Wi-Fi.',
     body: 'Use LocalSend. Local transfer will be faster than anything routed over the internet, and there is no size ceiling.',
+  },
+  {
+    title: 'Anything over 100 MB, on any network.',
+    body: 'Mubifiles caps a file at 100 MB and a session at 500 MB. PairDrop transfers peer-to-peer and imposes no hard size limit, so for a big file it is the better choice even across networks.',
   },
   {
     title: 'A permanent link you can send to someone next week.',

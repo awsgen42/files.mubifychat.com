@@ -92,12 +92,17 @@ export default function DifferentNetworksPage() {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold">PairDrop with device pairing</h3>
+            <h3 className="text-sm font-semibold">PairDrop public rooms or pairing</h3>
             <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-              PairDrop, the successor to Snapdrop, added a pairing feature that lets two devices you
-              have paired once reach each other later without sharing a network. It is a good option
-              if these are your own devices and you will use them together often enough to justify
-              the setup.
+              PairDrop, the successor to Snapdrop, crosses networks two ways. A temporary public room
+              needs no setup at all: enter a five-letter code on both devices and they connect over
+              the internet, with a TURN server bridging NAT automatically. Persistent pairing does
+              the same for devices you use together often.
+            </p>
+            <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+              Transfers stay peer-to-peer, which means no third party stores your file and there is
+              no hard size limit — but it also means both devices have to be online at the same
+              moment, with both tabs open.
             </p>
           </div>
 
