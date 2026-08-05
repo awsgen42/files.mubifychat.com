@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { FAQ } from '@/lib/faq';
 import { themeBootstrapScript } from '@/lib/useTheme';
 import './globals.css';
 
@@ -33,11 +34,24 @@ export const metadata: Metadata = {
     siteName: 'Mubifiles',
     title: TITLE,
     description: DESCRIPTION,
+    // Absolute rather than relative: some crawlers (WhatsApp notably) will not
+    // resolve a relative og:image against the page URL.
+    images: [
+      {
+        url: `${SITE_URL}/og.png`,
+        width: 1200,
+        height: 630,
+        alt: 'Mubifiles — send files and text between your devices',
+      },
+    ],
   },
   twitter: {
-    card: 'summary',
+    // With an image attached, `summary` renders a small thumbnail; the
+    // full-bleed card needs summary_large_image.
+    card: 'summary_large_image',
     title: TITLE,
     description: DESCRIPTION,
+    images: [`${SITE_URL}/og.png`],
   },
 };
 
@@ -76,6 +90,23 @@ const structuredData = {
   ],
 };
 
+/**
+ * FAQPage schema, built from the same constant the visible FAQ renders from,
+ * so the answers cannot drift out of sync with the page.
+ */
+const faqStructuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: FAQ.map((entry) => ({
+    '@type': 'Question',
+    name: entry.q,
+    acceptedAnswer: {
+      '@type': 'Answer',
+      text: entry.a,
+    },
+  })),
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
@@ -84,6 +115,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqStructuredData) }}
         />
       </head>
       <body>{children}</body>
