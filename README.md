@@ -18,7 +18,7 @@ This repository implements **Phase 1 (MVP)** of the project plan.
 | API | A single Cloudflare Worker (`worker/`) |
 | Session metadata | Cloudflare KV, with a sliding TTL |
 | File bodies | Cloudflare R2 (zero egress fees) |
-| Cleanup | Cron-triggered Worker + an R2 lifecycle rule as a backstop |
+| Cleanup | Cron-triggered Worker, plus two R2 lifecycle rules as backstops |
 
 The Worker serves the exported UI through its assets binding and handles
 `/api/*` itself, so the whole app deploys as one `wrangler deploy`.
@@ -114,7 +114,14 @@ mode there are no R2 S3 credentials, so uploads take the Worker-proxied path.
    npx wrangler secret put R2_BUCKET_NAME
    ```
 
-   Presigned uploads are cross-origin, so the bucket also needs CORS
+   Uploads currently run through the Worker, so these are unset in production.
+If that changes, note that only the part PUTs need presigning: a multipart
+upload can be driven from either the Workers API or the S3 API, so it can still
+be created, completed and aborted on the binding as it is now. The client-side
+part loop, the resume manifest and the abort paths are transport-independent
+and carry over unchanged.
+
+Presigned uploads are cross-origin, so the bucket also needs CORS
    (`wrangler r2 bucket cors put mubifiles --file cors.json`):
 
    ```json
@@ -129,9 +136,30 @@ mode there are no R2 S3 credentials, so uploads take the Worker-proxied path.
    ]
    ```
 
-3. **Add a lifecycle rule** as a backstop, in case the cron job ever stops
-   running: delete objects under the `sessions/` prefix after 1 day, matching
-   the hard session cap.
+3. **Add two lifecycle rules.** R2 dashboard → the bucket → Settings → Object
+   lifecycle rules. These are different actions, not alternatives — add both.
+
+   | Rule | Prefix | Action | After |
+   |---|---|---|---|
+   | `expire-session-objects` | `sessions/` | Delete objects | 1 day |
+   | `abort-incomplete-multipart` | `sessions/` | Abort incomplete multipart uploads | 2 days |
+
+   The first is a backstop in case the cron job stops running, matching the 24h
+   hard session cap.
+
+   The second is **not optional**, and it is the only thing covering one case.
+   The parts of an incomplete multipart upload are not objects: they never
+   appear in `FILES.list()`, so the cron sweep cannot see them, and deleting the
+   key they are destined for does not remove them either. The Worker aborts
+   explicitly on cancel, on session end, on a failed completion and — if anyone
+   touches the code again — on expiry. But an upload that is simply abandoned
+   leaves no signal at all, and once the session document expires out of KV the
+   uploadId is gone for good. Only this rule reclaims those.
+
+   2 days rather than 1 because a live session can be up to 24h old. A 1-day
+   rule sits exactly on that boundary and could abort an upload belonging to a
+   session that is still legitimately alive — a silent failure, and a miserable
+   one to debug. If the hard cap ever rises above 24h, raise this with it.
 
 4. **Deploy**
 

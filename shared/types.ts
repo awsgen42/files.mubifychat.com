@@ -3,6 +3,10 @@
  * Keep this file free of runtime dependencies so both build targets can use it.
  */
 
+import type { UploadedPart } from './upload';
+
+export type { UploadedPart };
+
 export type SessionStatus = 'waiting' | 'active' | 'closed';
 
 export type ItemKind = 'text' | 'file';
@@ -74,20 +78,38 @@ export interface JoinSessionResponse {
 
 /**
  * How the client should upload the file body.
- * `presign` sends the bytes browser → R2 directly (preferred).
- * `proxy` streams them through the Worker, used when R2 S3 credentials
- * are not configured for the deployment.
+ * `presign` sends the bytes browser → R2 directly.
+ * `proxy` streams them through the Worker in a single request.
+ * `multipart` streams them through the Worker one part at a time, which is
+ * what makes a failed upload resumable.
+ *
+ * `url` is always a working single-PUT endpoint, even in multipart mode. A
+ * client that predates multipart ignores the mode and PUTs to it as before,
+ * so the UI and the Worker can be deployed in either order without breaking
+ * a session that is already open.
  */
 export interface UploadTarget {
-  mode: 'presign' | 'proxy';
+  mode: 'presign' | 'proxy' | 'multipart';
   url: string;
   headers: Record<string, string>;
+  /** Multipart only: where to PUT part N, and how big each part must be. */
+  partsUrl?: string;
+  partSize?: number;
 }
 
 export interface CreateFileItemResponse {
   item: ShareItem;
   upload: UploadTarget;
   session: SessionView;
+}
+
+/**
+ * Sent with the completion request for a multipart upload. The parts are
+ * collected by the client as each one lands, so an interrupted upload can be
+ * finished without re-sending what already arrived.
+ */
+export interface CompleteUploadRequest {
+  parts?: UploadedPart[];
 }
 
 export interface ApiErrorBody {

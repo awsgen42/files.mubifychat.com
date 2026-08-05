@@ -2,8 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SessionView } from '@/shared/types';
-import { ApiError, api, uploadFile } from './api';
-import { POLL_ACTIVE_MS, POLL_IDLE_AFTER_MS, POLL_IDLE_MS, SPEED_WINDOW_MS } from './tuning';
+import type { UploadedPart } from '@/shared/types';
+import { partCount, partRange } from '@/shared/upload';
+import { ApiError, api, isRetryable, uploadFile, uploadPart } from './api';
+import { PART_RETRIES, PART_RETRY_BASE_MS, POLL_ACTIVE_MS, POLL_IDLE_AFTER_MS, POLL_IDLE_MS, SPEED_WINDOW_MS } from './tuning';
+import { beginUpload, findResumable, forgetSessionUploads, forgetUpload, recordPart } from './uploads';
 
 const STORAGE_KEY = 'mubifiles.session';
 
@@ -55,6 +58,7 @@ export interface ShareSession {
   sendText: (text: string) => Promise<void>;
   sendFiles: (files: File[]) => Promise<void>;
   end: () => Promise<void>;
+  cancelUpload: (itemId: string) => Promise<void>;
   leave: () => void;
   downloadUrl: (itemId: string) => string;
 }
@@ -83,6 +87,10 @@ export function useShareSession(): ShareSession {
   }, []);
 
   const reset = useCallback(() => {
+    const current = credentialsRef.current;
+    // The uploadIds these manifests pair with die with the session, so keeping
+    // them would only leave junk in localStorage.
+    if (current) forgetSessionUploads(current.code);
     storeCredentials(null);
     setCredentials(null);
     setSession(null);
@@ -234,37 +242,84 @@ export function useShareSession(): ShareSession {
         // Sequential rather than parallel: one honest progress bar at a time,
         // and it keeps a phone's upstream from being split across transfers.
         for (const file of files) {
-          const created = await api.createFileItem(current.code, current.token, file);
-          const itemId = created.item.id;
-          setSession(created.session);
+          const resumable = findResumable(current.code, file);
+          const created = resumable
+            ? null
+            : await api.createFileItem(current.code, current.token, file);
+          if (created) setSession(created.session);
+
+          const itemId = resumable ? resumable.itemId : created!.item.id;
+          const target = created?.upload;
+
           setTransfers((list) => [
-            ...list,
-            { itemId, name: file.name, loaded: 0, total: file.size, bytesPerSecond: 0, secondsRemaining: 0 },
+            ...list.filter((t) => t.itemId !== itemId),
+            {
+              itemId,
+              name: file.name,
+              loaded: resumable ? resumable.parts.length * resumable.partSize : 0,
+              total: file.size,
+              bytesPerSecond: 0,
+              secondsRemaining: 0,
+            },
           ]);
 
-          const startedAt = performance.now();
-          let windowStart = startedAt;
-          let windowBytes = 0;
-          let bytesPerSecond = 0;
+          const speed = createSpeedometer();
+          const report = (loaded: number) => {
+            const { bytesPerSecond, secondsRemaining } = speed(loaded, file.size);
+            setTransfers((list) =>
+              list.map((t) =>
+                t.itemId === itemId
+                  ? { ...t, loaded, total: file.size, bytesPerSecond, secondsRemaining }
+                  : t,
+              ),
+            );
+          };
 
           try {
-            await uploadFile(created.upload, file, current.token, ({ loaded, total }) => {
-              const elapsed = performance.now() - windowStart;
-              windowBytes = loaded;
-              if (elapsed >= SPEED_WINDOW_MS) {
-                bytesPerSecond = (windowBytes / (performance.now() - startedAt)) * 1000;
-                windowStart = performance.now();
-              } else if (bytesPerSecond === 0) {
-                bytesPerSecond = (loaded / Math.max(1, performance.now() - startedAt)) * 1000;
+            if (resumable || target?.mode === 'multipart') {
+              const partSize = resumable ? resumable.partSize : target!.partSize!;
+              // A resumed upload no longer has the create response that carried
+              // the URL, so it is rebuilt from the fixed API shape.
+              const partsUrl = resumable ? api.partsUrl(current.code, itemId) : target!.partsUrl!;
+              if (!resumable) {
+                beginUpload({
+                  code: current.code,
+                  itemId,
+                  name: file.name,
+                  size: file.size,
+                  lastModified: file.lastModified,
+                  partSize,
+                });
               }
-              const remaining = bytesPerSecond > 0 ? (total - loaded) / bytesPerSecond : 0;
-              setTransfers((list) =>
-                list.map((t) =>
-                  t.itemId === itemId ? { ...t, loaded, total, bytesPerSecond, secondsRemaining: remaining } : t,
-                ),
+
+              const done = new Map<number, UploadedPart>(
+                (resumable?.parts ?? []).map((p) => [p.partNumber, p]),
               );
-            });
-            setSession(await api.completeUpload(current.code, current.token, itemId));
+              const total = partCount(file.size, partSize);
+
+              for (let n = 1; n <= total; n++) {
+                if (done.has(n)) continue;
+                const { start, end } = partRange(n, file.size, partSize);
+                // Progress is anchored to completed parts, so a retried part
+                // rewinds only its own slice rather than the whole bar.
+                const base = done.size * partSize;
+                const part = await withRetries(() =>
+                  uploadPart(partsUrl, n, file.slice(start, end), current.token, ({ loaded }) =>
+                    report(base + loaded),
+                  ),
+                );
+                done.set(n, part);
+                recordPart(itemId, part);
+                report(done.size * partSize);
+              }
+
+              const manifest = [...done.values()].sort((a, b) => a.partNumber - b.partNumber);
+              setSession(await api.completeUpload(current.code, current.token, itemId, manifest));
+              forgetUpload(itemId);
+            } else {
+              await uploadFile(target!, file, current.token, ({ loaded }) => report(loaded));
+              setSession(await api.completeUpload(current.code, current.token, itemId));
+            }
             setTransfers((list) => list.filter((t) => t.itemId !== itemId));
           } catch (err) {
             const message = err instanceof Error ? err.message : 'Upload failed.';
@@ -284,6 +339,19 @@ export function useShareSession(): ShareSession {
         reset();
       }),
     [reset, run],
+  );
+
+  /** Drops a stuck or unwanted upload, releasing its parts and its quota. */
+  const cancelUpload = useCallback(
+    (itemId: string) =>
+      run(async () => {
+        const current = credentialsRef.current;
+        if (!current) return;
+        forgetUpload(itemId);
+        setTransfers((list) => list.filter((t) => t.itemId !== itemId));
+        setSession(await api.cancelItem(current.code, current.token, itemId));
+      }),
+    [run],
   );
 
   const leave = useCallback(() => {
@@ -312,7 +380,43 @@ export function useShareSession(): ShareSession {
     sendText,
     sendFiles,
     end,
+    cancelUpload,
     leave,
     downloadUrl,
   };
+}
+
+/**
+ * Smooths the speed readout over a window so the number does not jitter with
+ * every progress event, and derives the ETA from it.
+ */
+function createSpeedometer() {
+  const startedAt = performance.now();
+  let windowStart = startedAt;
+  let bytesPerSecond = 0;
+
+  return (loaded: number, total: number) => {
+    const now = performance.now();
+    if (now - windowStart >= SPEED_WINDOW_MS || bytesPerSecond === 0) {
+      bytesPerSecond = (loaded / Math.max(1, now - startedAt)) * 1000;
+      windowStart = now;
+    }
+    const secondsRemaining = bytesPerSecond > 0 ? (total - loaded) / bytesPerSecond : 0;
+    return { bytesPerSecond, secondsRemaining };
+  };
+}
+
+/**
+ * Retries one part in isolation. This is the whole point of multipart here: a
+ * dropped connection costs the part in flight, not the file.
+ */
+async function withRetries<T>(attempt: () => Promise<T>): Promise<T> {
+  for (let tries = 0; ; tries++) {
+    try {
+      return await attempt();
+    } catch (err) {
+      if (tries >= PART_RETRIES || !isRetryable(err)) throw err;
+      await new Promise((resolve) => setTimeout(resolve, PART_RETRY_BASE_MS * 2 ** tries));
+    }
+  }
 }

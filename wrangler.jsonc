@@ -25,6 +25,16 @@
       "name": "POLL_LIMITER",
       "namespace_id": "1001",
       "simple": { "limit": 60, "period": 60 }
+    },
+    // Guards each part of a multipart upload. Separate from the KV `sendItem`
+    // bucket on purpose: that one stops item spam, while a part is one slow
+    // throughput-bound request, and the KV counter's write-per-request would
+    // cost ~20 writes per large file against a 1,000/day budget. 120/min is
+    // unreachable in practice — at 25 MB a part it needs ~400 Mbps upstream.
+    {
+      "name": "UPLOAD_LIMITER",
+      "namespace_id": "1002",
+      "simple": { "limit": 120, "period": 60 }
     }
   ],
 

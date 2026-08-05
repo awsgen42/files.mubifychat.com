@@ -4,6 +4,7 @@ import type {
   CreateSessionResponse,
   JoinSessionResponse,
   SessionView,
+  UploadedPart,
 } from '@/shared/types';
 
 /**
@@ -60,8 +61,19 @@ export const api = {
       token,
     ),
 
-  completeUpload: (code: string, token: string, itemId: string) =>
-    request<SessionView>(`/api/sessions/${code}/items/${itemId}/complete`, { method: 'POST' }, token),
+  completeUpload: (code: string, token: string, itemId: string, parts?: UploadedPart[]) =>
+    request<SessionView>(
+      `/api/sessions/${code}/items/${itemId}/complete`,
+      { method: 'POST', ...(parts ? { body: JSON.stringify({ parts }) } : {}) },
+      token,
+    ),
+
+  // Rebuilt rather than remembered: a resumed upload no longer has the create
+  // response that carried it, and this shape is fixed by the API.
+  partsUrl: (code: string, itemId: string) => apiUrl(`/api/sessions/${code}/items/${itemId}/parts`),
+
+  cancelItem: (code: string, token: string, itemId: string) =>
+    request<SessionView>(`/api/sessions/${code}/items/${itemId}`, { method: 'DELETE' }, token),
 
   endSession: (code: string, token: string) =>
     request<{ ok: true }>(`/api/sessions/${code}/end`, { method: 'POST' }, token),
@@ -78,36 +90,87 @@ export interface UploadProgress {
 }
 
 /**
- * `fetch` gives no upload progress, so uploads go through XHR. The same call
- * covers both a presigned R2 URL and the Worker proxy fallback.
+ * `fetch` gives no upload progress, so uploads go through XHR. One PUT of a
+ * body, used for whole files on the single-request path and for individual
+ * parts on the multipart one.
+ *
+ * `authorize` is false for a presigned URL: it signs only the host, so any
+ * extra header invalidates the signature.
  */
-export function uploadFile(
-  target: { mode: 'presign' | 'proxy'; url: string; headers: Record<string, string> },
-  file: File,
-  token: string,
+function putWithProgress(
+  url: string,
+  body: Blob,
+  headers: Record<string, string>,
+  authorize: string | null,
   onProgress: (progress: UploadProgress) => void,
   signal?: AbortSignal,
-): Promise<void> {
+): Promise<XMLHttpRequest> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('PUT', target.url, true);
+    xhr.open('PUT', url, true);
 
-    for (const [name, value] of Object.entries(target.headers)) xhr.setRequestHeader(name, value);
-    // A presigned URL signs only the host, so adding headers would break the
-    // signature; the proxy path needs our own session token instead.
-    if (target.mode === 'proxy') xhr.setRequestHeader('authorization', `Bearer ${token}`);
+    for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value);
+    if (authorize) xhr.setRequestHeader('authorization', `Bearer ${authorize}`);
 
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress({ loaded: event.loaded, total: event.total });
     };
     xhr.onload = () =>
       xhr.status >= 200 && xhr.status < 300
-        ? resolve()
+        ? resolve(xhr)
         : reject(new ApiError(xhr.status, 'upload_failed', 'Upload failed. Please try again.'));
     xhr.onerror = () => reject(new ApiError(0, 'network', 'Network error during upload.'));
     xhr.onabort = () => reject(new ApiError(0, 'aborted', 'Upload cancelled.'));
 
     signal?.addEventListener('abort', () => xhr.abort(), { once: true });
-    xhr.send(file);
+    xhr.send(body);
   });
+}
+
+/** Single-request upload: the whole file in one PUT. */
+export function uploadFile(
+  target: { mode: 'presign' | 'proxy' | 'multipart'; url: string; headers: Record<string, string> },
+  file: File,
+  token: string,
+  onProgress: (progress: UploadProgress) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  return putWithProgress(
+    target.url,
+    file,
+    target.headers,
+    target.mode === 'presign' ? null : token,
+    onProgress,
+    signal,
+  ).then(() => undefined);
+}
+
+/**
+ * Uploads one part and returns what R2 recorded for it.
+ *
+ * The etag is passed through untouched. R2 compares it exactly at completion,
+ * so normalising it here — stripping quotes, changing case — would break the
+ * upload at the last step with an error that blames the wrong thing.
+ */
+export async function uploadPart(
+  partsUrl: string,
+  partNumber: number,
+  body: Blob,
+  token: string,
+  onProgress: (progress: UploadProgress) => void,
+  signal?: AbortSignal,
+): Promise<UploadedPart> {
+  const xhr = await putWithProgress(`${partsUrl}/${partNumber}`, body, {}, token, onProgress, signal);
+  const parsed = JSON.parse(xhr.responseText) as Partial<UploadedPart>;
+  if (typeof parsed.etag !== 'string' || !parsed.etag) {
+    throw new ApiError(0, 'upload_failed', 'The server did not confirm that part.');
+  }
+  return { partNumber, etag: parsed.etag };
+}
+
+/** Aborts are the user's decision and 4xx will not fix itself; the rest might. */
+export function isRetryable(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return false;
+  if (error.code === 'aborted') return false;
+  return error.status === 0 || error.status === 429 || error.status >= 500;
 }

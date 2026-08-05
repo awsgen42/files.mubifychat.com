@@ -1,10 +1,12 @@
 import type {
+  CompleteUploadRequest,
   CreateFileItemResponse,
   CreateSessionResponse,
   JoinSessionResponse,
   ParticipantRole,
   UploadTarget,
 } from '../shared/types';
+import { UPLOAD_PART_BYTES, isValidPartManifest, partCount, usesMultipart } from '../shared/upload';
 import { hasPresignCredentials, readConfig, type Config, type Env } from './env';
 import { DOWNLOAD_CONTENT_TYPE, contentDisposition, normalizeContentType, sanitizeFilename } from './files';
 import {
@@ -19,7 +21,8 @@ import {
   unauthorized,
 } from './http';
 import { isValidCode, randomId } from './ids';
-import { LIMITS, enforceRateLimit, enforcePollLimit } from './ratelimit';
+import { LIMITS, enforceRateLimit, enforcePollLimit, enforceUploadLimit } from './ratelimit';
+import { abortSessionUploads, abortUpload } from './multipart';
 import { presignUpload } from './presign';
 import {
   authenticate,
@@ -78,12 +81,20 @@ export async function handleApi(request: Request, env: Env, url: URL): Promise<R
       if (segments[4] === 'text') return sendTextRoute(ctx, code);
       if (segments[4] === 'file') return createFileItemRoute(ctx, code);
     }
+    // DELETE /api/sessions/:code/items/:id
+    if (segments.length === 5 && method === 'DELETE') return cancelItemRoute(ctx, code, segments[4]);
+
     // /api/sessions/:code/items/:id/<action>
     if (segments.length === 6) {
       const itemId = segments[4];
       if (segments[5] === 'blob' && method === 'PUT') return proxyUploadRoute(ctx, code, itemId);
       if (segments[5] === 'complete' && method === 'POST') return completeUploadRoute(ctx, code, itemId);
       if (segments[5] === 'download' && method === 'GET') return downloadRoute(ctx, code, itemId);
+    }
+
+    // PUT /api/sessions/:code/items/:id/parts/:n
+    if (segments.length === 7 && segments[5] === 'parts' && method === 'PUT') {
+      return uploadPartRoute(ctx, code, segments[4], segments[6]);
     }
   }
 
@@ -143,6 +154,8 @@ async function stateRoute(ctx: Ctx, code: string): Promise<Response> {
 
 async function endRoute(ctx: Ctx, code: string): Promise<Response> {
   const { session } = await requireAuth(ctx, code);
+  // Before purgeObjects, which only knows about completed objects.
+  await abortSessionUploads(ctx.env, session);
   await purgeObjects(ctx.env, session);
   await deleteSession(ctx.env, session);
   return json({ ok: true });
@@ -208,6 +221,17 @@ async function createFileItemRoute(ctx: Ctx, code: string): Promise<Response> {
   };
   item.key = objectKey(session, item.id);
 
+  // Opened before the item is saved, so the uploadId is persisted in the same
+  // write. An upload we opened but failed to record would be unabortable.
+  const multipart = usesMultipart(size) ? await ctx.env.FILES.createMultipartUpload(item.key, {
+    httpMetadata: { contentType: DOWNLOAD_CONTENT_TYPE },
+    customMetadata: { sessionCode: session.code, sessionId: session.id },
+  }) : null;
+  if (multipart) {
+    item.uploadId = multipart.uploadId;
+    item.partSize = UPLOAD_PART_BYTES;
+  }
+
   // Reserved now against the declared size; reconciled to the real size once
   // the upload is confirmed, so a lie about size can't be used to overshoot.
   session.bytesUsed += size;
@@ -217,28 +241,47 @@ async function createFileItemRoute(ctx: Ctx, code: string): Promise<Response> {
 
   // Absolute, because the client may be served from a different origin than
   // the API and would otherwise PUT to its own host.
-  const upload: UploadTarget = hasPresignCredentials(ctx.env)
-    ? { mode: 'presign', url: await presignUpload(ctx.env, item.key), headers: {} }
-    : {
-        mode: 'proxy',
-        url: `${ctx.url.origin}/api/sessions/${session.code}/items/${item.id}/blob`,
+  const base = `${ctx.url.origin}/api/sessions/${session.code}/items/${item.id}`;
+  const upload: UploadTarget = multipart
+    ? {
+        mode: 'multipart',
+        // Still a working single-PUT endpoint. A client from before multipart
+        // ignores the mode and uses this, and completeUploadRoute copes.
+        url: `${base}/blob`,
         headers: {},
-      };
+        partsUrl: `${base}/parts`,
+        partSize: UPLOAD_PART_BYTES,
+      }
+    : hasPresignCredentials(ctx.env)
+      ? { mode: 'presign', url: await presignUpload(ctx.env, item.key), headers: {} }
+      : { mode: 'proxy', url: `${base}/blob`, headers: {} };
 
   const response: CreateFileItemResponse = {
-    item: stripKey(item),
+    item: stripInternal(item),
     upload,
     session: toView(session, ctx.config, role),
   };
   return json(response, 201);
 }
 
-/** Fallback upload path: bytes stream through the Worker into R2. */
+/**
+ * Single-request upload path: bytes stream through the Worker into R2.
+ *
+ * Still reachable for a multipart item, because a client loaded before
+ * multipart shipped will use it regardless of what the create response said.
+ * In that case the multipart upload we opened is dead weight and is aborted
+ * here rather than left to the lifecycle rule.
+ */
 async function proxyUploadRoute(ctx: Ctx, code: string, itemId: string): Promise<Response> {
   const { session } = await requireAuth(ctx, code);
   const item = requirePendingItem(session, itemId);
 
   if (!ctx.request.body) throw badRequest('Missing request body.');
+  if (item.uploadId) {
+    await abortUpload(ctx.env, item);
+    item.partSize = undefined;
+    await saveSession(ctx.env, session, ctx.config, ctx.now);
+  }
   await ctx.env.FILES.put(item.key!, ctx.request.body, {
     httpMetadata: { contentType: DOWNLOAD_CONTENT_TYPE },
     customMetadata: { sessionCode: session.code, sessionId: session.id },
@@ -247,12 +290,75 @@ async function proxyUploadRoute(ctx: Ctx, code: string, itemId: string): Promise
 }
 
 /**
+ * Receives one part. Each part is an independent request against an uploadId
+ * that lives in R2, not in this Worker, so a part can be retried on its own
+ * and a deploy in the middle of an upload is harmless.
+ *
+ * The returned etag is what the client stores and hands back at completion.
+ */
+async function uploadPartRoute(ctx: Ctx, code: string, itemId: string, rawPart: string): Promise<Response> {
+  await enforceUploadLimit(ctx.env, clientIp(ctx.request));
+  const { session } = await requireAuth(ctx, code);
+  const item = requirePendingItem(session, itemId);
+
+  if (!item.uploadId) throw badRequest('That upload is not resumable. Please start it again.');
+  if (!ctx.request.body) throw badRequest('Missing request body.');
+
+  const partNumber = Number(rawPart);
+  const total = partCount(item.size ?? 0, item.partSize ?? UPLOAD_PART_BYTES);
+  if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > total) {
+    throw badRequest('That part number is not part of this upload.');
+  }
+
+  const uploaded = await ctx.env.FILES
+    .resumeMultipartUpload(item.key!, item.uploadId)
+    .uploadPart(partNumber, ctx.request.body);
+
+  // A large upload can outlast the idle window on its own, and the client's
+  // poller — which is what normally slides it — stops while the tab is
+  // backgrounded. Slide it here too, throttled exactly as stateRoute is, so a
+  // long upload costs at most one extra write per third of the window.
+  if (ctx.now - session.lastActivity > (ctx.config.idleTtlSeconds * 1000) / 3) {
+    session.lastActivity = ctx.now;
+    await saveSession(ctx.env, session, ctx.config, ctx.now);
+  }
+
+  return json({ partNumber: uploaded.partNumber, etag: uploaded.etag });
+}
+
+/**
+ * Cancels a pending upload and releases everything it reserved. Without this
+ * the parts would survive until the lifecycle rule swept them and the session
+ * would stay charged for bytes that never arrived.
+ */
+async function cancelItemRoute(ctx: Ctx, code: string, itemId: string): Promise<Response> {
+  const { session, role } = await requireAuth(ctx, code);
+  const item = session.items.find((i) => i.id === itemId);
+  if (!item || item.kind !== 'file') throw notFound('Unknown upload.');
+  if (item.state !== 'pending') throw badRequest('That upload has already been completed.');
+
+  await abortUpload(ctx.env, item);
+  // Best-effort: a single-PUT upload may already have written the object.
+  if (item.key) await ctx.env.FILES.delete(item.key).catch(() => undefined);
+
+  session.bytesUsed = Math.max(0, session.bytesUsed - (item.size ?? 0));
+  session.items = session.items.filter((i) => i.id !== itemId);
+  touch(session, ctx.now);
+  await saveSession(ctx.env, session, ctx.config, ctx.now);
+
+  return json(toView(session, ctx.config, role));
+}
+
+/**
  * Marks the file downloadable. The stored object is measured here rather than
- * trusted from the client, since a presigned PUT bypasses the Worker entirely.
+ * trusted from the client, since neither a presigned PUT nor a client-supplied
+ * part list is evidence of what actually landed.
  */
 async function completeUploadRoute(ctx: Ctx, code: string, itemId: string): Promise<Response> {
   const { session, role } = await requireAuth(ctx, code);
   const item = requirePendingItem(session, itemId);
+
+  if (item.uploadId) await assembleParts(ctx, session, item);
 
   const object = await ctx.env.FILES.head(item.key!);
   if (!object) throw badRequest('Upload was not received. Please try again.');
@@ -262,6 +368,7 @@ async function completeUploadRoute(ctx: Ctx, code: string, itemId: string): Prom
   const projected = session.bytesUsed - declared + actual;
 
   if (actual > ctx.config.maxFileBytes || projected > ctx.config.maxSessionBytes) {
+    await abortUpload(ctx.env, item);
     await ctx.env.FILES.delete(item.key!);
     session.bytesUsed -= declared;
     session.items = session.items.filter((i) => i.id !== item.id);
@@ -273,6 +380,9 @@ async function completeUploadRoute(ctx: Ctx, code: string, itemId: string): Prom
   session.bytesUsed = projected;
   item.size = actual;
   item.state = 'ready';
+  // The upload is now an object; there is nothing left to abort.
+  item.uploadId = undefined;
+  item.partSize = undefined;
   touch(session, ctx.now);
   await saveSession(ctx.env, session, ctx.config, ctx.now);
 
@@ -333,8 +443,51 @@ async function downloadRoute(ctx: Ctx, code: string, itemId: string): Promise<Re
 /* Helpers                                                              */
 /* ------------------------------------------------------------------ */
 
-function stripKey(item: StoredItem) {
-  const { key: _key, ...rest } = item;
+/**
+ * Turns the uploaded parts into an object.
+ *
+ * The manifest comes from the client because the binding offers no way to list
+ * what was uploaded — but it is not trusted: R2 rejects any etag that does not
+ * match a part it actually holds, and the caller re-measures the finished
+ * object against the limits regardless.
+ *
+ * A client that used the single-PUT fallback sends no manifest; in that case
+ * the multipart upload is abandoned and the object it already wrote stands.
+ */
+async function assembleParts(ctx: Ctx, session: StoredSession, item: StoredItem): Promise<void> {
+  const body = await readJson<CompleteUploadRequest>(ctx.request).catch(() => ({}) as CompleteUploadRequest);
+
+  if (body.parts === undefined) {
+    await abortUpload(ctx.env, item);
+    item.partSize = undefined;
+    await saveSession(ctx.env, session, ctx.config, ctx.now);
+    return;
+  }
+
+  const expected = partCount(item.size ?? 0, item.partSize ?? UPLOAD_PART_BYTES);
+  if (!isValidPartManifest(body.parts, expected)) {
+    throw badRequest('That upload is incomplete. Please send it again.');
+  }
+
+  const ordered = [...body.parts].sort((a, b) => a.partNumber - b.partNumber);
+  try {
+    await ctx.env.FILES.resumeMultipartUpload(item.key!, item.uploadId!).complete(ordered);
+  } catch (err) {
+    // R2 validates part sizes and etags here, so this is where a corrupted or
+    // partial manifest surfaces. Nothing is recoverable at that point.
+    console.error('multipart complete failed', item.key, err);
+    await abortUpload(ctx.env, item);
+    throw badRequest('That upload could not be assembled. Please send it again.');
+  }
+}
+
+/**
+ * Drops every server-only field before an item goes over the wire. Must stay
+ * in step with the identical strip in session.ts toView — this one covers the
+ * create response, which does not go through it.
+ */
+function stripInternal(item: StoredItem) {
+  const { key: _key, uploadId: _uploadId, partSize: _partSize, ...rest } = item;
   return rest;
 }
 
@@ -355,6 +508,9 @@ async function requireLiveSession(ctx: Ctx, code: string): Promise<StoredSession
   const session = await loadSession(ctx.env, code);
   if (!session) throw notFound();
   if (isExpired(session, ctx.config, ctx.now)) {
+    // Opportunistic: this only runs if someone happens to touch the code after
+    // it expires. A session nobody returns to is the lifecycle rule's job.
+    await abortSessionUploads(ctx.env, session);
     await purgeObjects(ctx.env, session);
     await deleteSession(ctx.env, session);
     throw notFound('That session has expired.');

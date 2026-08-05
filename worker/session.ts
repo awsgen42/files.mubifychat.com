@@ -2,9 +2,18 @@ import type { ParticipantRole, SessionStatus, SessionView, ShareItem } from '../
 import type { Config, Env } from './env';
 import { generateCode, hashToken, randomId, randomToken, timingSafeEqual } from './ids';
 
-/** Item as persisted, including the R2 key which is never sent to clients. */
+/** Item as persisted. None of these fields are ever sent to clients. */
 export interface StoredItem extends ShareItem {
   key?: string;
+  /**
+   * Set while a multipart upload is in flight, cleared once it completes.
+   * Held server-side rather than accepted from the client so one participant
+   * cannot drive — or abort — another's upload. Its presence is also what
+   * tells the cleanup paths there are parts to abort: parts of an incomplete
+   * upload are invisible to R2's list(), so nothing else can find them.
+   */
+  uploadId?: string;
+  partSize?: number;
 }
 
 export interface StoredParticipant {
@@ -170,7 +179,9 @@ export function toView(session: StoredSession, config: Config, you: ParticipantR
     version: session.version,
     you,
     participants: session.participants.map((p) => ({ role: p.role, joinedAt: p.joinedAt })),
-    items: session.items.map(({ key: _key, ...item }) => item),
+    // Strips every server-only field. Leaking uploadId would hand the other
+    // participant everything needed to interfere with an upload in progress.
+    items: session.items.map(({ key: _key, uploadId: _uploadId, partSize: _partSize, ...item }) => item),
     limits: {
       maxFileBytes: config.maxFileBytes,
       maxSessionBytes: config.maxSessionBytes,

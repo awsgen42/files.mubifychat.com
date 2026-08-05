@@ -11,6 +11,7 @@ export interface Env {
   FILES: R2Bucket;
   ASSETS: Fetcher;
   POLL_LIMITER: RateLimiterBinding;
+  UPLOAD_LIMITER: RateLimiterBinding;
 
   SESSION_IDLE_TTL_SECONDS: string;
   SESSION_MAX_TTL_SECONDS: string;

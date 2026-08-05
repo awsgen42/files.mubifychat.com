@@ -59,3 +59,23 @@ export async function enforcePollLimit(env: Env, ip: string): Promise<void> {
   const { success } = await env.POLL_LIMITER.limit({ key: ip });
   if (!success) throw rateLimited();
 }
+
+/**
+ * Guards each part of a multipart upload.
+ *
+ * Deliberately not the `sendItem` bucket above. That one exists to stop item
+ * spam — many cheap requests bloating the session document — whereas a part is
+ * one slow, throughput-bound request; sharing a budget would let a legitimate
+ * large upload consume the allowance that stops the spam. And the KV counter
+ * costs a write per request, which is the scarce resource here: at 20 parts
+ * per 500 MB file it would be a real dent in the daily write budget. Cheaper
+ * to use the native limiter, as the poll route already does.
+ *
+ * 120/min is far above anything reachable: at 25 MB per part, sustaining it
+ * would need roughly 400 Mbps of upstream.
+ */
+export async function enforceUploadLimit(env: Env, ip: string): Promise<void> {
+  if (ip === 'unknown') return;
+  const { success } = await env.UPLOAD_LIMITER.limit({ key: ip });
+  if (!success) throw rateLimited();
+}

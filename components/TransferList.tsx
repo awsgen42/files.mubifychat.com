@@ -3,9 +3,15 @@
 import type { Transfer } from '@/lib/useShareSession';
 import { formatBytes, formatDuration, formatSpeed } from '@/lib/format';
 import { AlertIcon } from './Icons';
-import { Card } from './ui';
+import { Button, Card } from './ui';
 
-export function TransferList({ transfers }: { transfers: Transfer[] }) {
+interface TransferListProps {
+  transfers: Transfer[];
+  /** Aborts the upload and releases the parts it has already sent. */
+  onCancel: (itemId: string) => void;
+}
+
+export function TransferList({ transfers, onCancel }: TransferListProps) {
   if (transfers.length === 0) return null;
 
   return (
@@ -18,7 +24,17 @@ export function TransferList({ transfers }: { transfers: Transfer[] }) {
             <li key={transfer.itemId}>
               <div className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="truncate font-medium">{transfer.name}</span>
-                <span className="shrink-0 tabular-nums text-muted-foreground">{Math.round(percent)}%</span>
+                <div className="flex shrink-0 items-baseline gap-3">
+                  <span className="tabular-nums text-muted-foreground">{Math.round(percent)}%</span>
+                  <Button
+                    variant="ghost"
+                    className="px-2 py-1 text-xs"
+                    onClick={() => onCancel(transfer.itemId)}
+                    aria-label={`Cancel upload of ${transfer.name}`}
+                  >
+                    Cancel
+                  </Button>
+                </div>
               </div>
 
               <div

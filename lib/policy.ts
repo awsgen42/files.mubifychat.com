@@ -55,6 +55,11 @@ export const LOCAL_STORAGE_ITEMS = [
     why: 'So refreshing the page does not lose the session. Cleared when the session ends.',
   },
   {
+    key: 'mubifiles.uploads',
+    what: 'For a large file being uploaded: its name, size and the identifiers of the pieces that have already been sent.',
+    why: 'So an upload interrupted by a dropped connection or a closed tab resumes instead of starting over. Cleared when the upload finishes or the session ends.',
+  },
+  {
     key: 'mubifiles.theme',
     what: 'Your light or dark theme preference, if you have set one.',
     why: 'So the page does not flash the wrong theme on load.',

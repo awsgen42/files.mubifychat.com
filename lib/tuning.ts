@@ -19,3 +19,12 @@ export const POLL_IDLE_AFTER_MS = 60_000;
 
 /** Window used to smooth the upload speed/ETA readout. */
 export const SPEED_WINDOW_MS = 3_000;
+
+/**
+ * Attempts per part beyond the first. A part is a self-contained request, so
+ * retrying it costs at most one part's worth of bytes.
+ */
+export const PART_RETRIES = 4;
+
+/** First backoff step; doubles each attempt, so 1s, 2s, 4s, 8s. */
+export const PART_RETRY_BASE_MS = 1_000;
