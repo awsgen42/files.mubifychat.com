@@ -99,16 +99,40 @@ export const AlertIcon = (props: IconProps) => (
   </Icon>
 );
 
+/**
+ * The brand mark, inline so it costs no request and can take the accent colour
+ * from the theme. Geometry matches public/logo-mark.svg — the two must stay in
+ * step, since one is the header and the other is what a home-screen shortcut
+ * shows.
+ *
+ * The chevron is knocked out rather than drawn, so whatever is behind the mark
+ * shows through it. That is why this needs a mask and cannot be a plain path.
+ *
+ * The mask id is fixed rather than generated. The mark appears more than once
+ * per page — header and demo — so the id repeats, but every copy declares an
+ * identical mask, and `url(#…)` resolving to the first is therefore always
+ * right. Generating one would mean useId, which would make every component
+ * rendering this a client component for no benefit.
+ */
+const MARK_MASK_ID = 'mubifiles-mark-knockout';
+
 export const LogoMark = (props: IconProps) => (
-  <svg viewBox="0 0 32 32" width={32} height={32} aria-hidden="true" {...props}>
-    <rect width="32" height="32" rx="9" fill="var(--accent)" />
-    <path
-      d="M10 20.5V11l6 5 6-5v9.5"
-      fill="none"
-      stroke="var(--accent-foreground)"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
+  <svg viewBox="0 0 34 34" width={32} height={32} aria-hidden="true" {...props}>
+    <mask id={MARK_MASK_ID}>
+      <rect width="34" height="34" fill="#000" />
+      <path
+        d="M9.9 23.9 C6.6 23.9 4.2 21.0 5.2 17.9 C5.9 15.8 7.9 14.5 10.0 14.8 C10.3 10.4 14.1 7.1 18.5 7.5 C22.3 7.8 25.4 10.8 25.9 14.6 C28.6 14.6 30.7 17.0 30.3 19.7 C30.0 22.1 28.0 23.9 25.6 23.9 Z"
+        fill="#fff"
+      />
+      <path
+        d="M11.8 21.3 v-7.2 l5.4 4.3 5.4-4.3 v7.2"
+        fill="none"
+        stroke="#000"
+        strokeWidth="2.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </mask>
+    <rect width="34" height="34" fill="var(--accent)" mask={`url(#${MARK_MASK_ID})`} />
   </svg>
 );

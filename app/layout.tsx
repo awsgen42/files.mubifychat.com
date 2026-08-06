@@ -24,6 +24,19 @@ export const metadata: Metadata = {
   // as separate pages.
   alternates: { canonical: '/' },
   robots: { index: true, follow: true },
+  // Merged in, not replacing anything. The SVG is listed first so browsers
+  // that support it use the scalable mark; the .ico is the fallback and is
+  // also what Windows and older browsers look for at the root. Removing
+  // app/icon.svg was part of this: the Next file convention was serving its
+  // own /icon.svg and would have shadowed the one in public/.
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', sizes: '48x48' },
+    ],
+    apple: '/apple-touch-icon.png',
+  },
+  manifest: '/manifest.webmanifest',
   verification: {
     google: 'kEYztc7CjWwoB4GtD6Aos-eh-MtuVuNQtokdnfy-XkM',
   },
