@@ -67,8 +67,8 @@ export async function enforcePollLimit(env: Env, ip: string): Promise<void> {
  * spam — many cheap requests bloating the session document — whereas a part is
  * one slow, throughput-bound request; sharing a budget would let a legitimate
  * large upload consume the allowance that stops the spam. And the KV counter
- * costs a write per request, which is the scarce resource here: at 20 parts
- * per 500 MB file it would be a real dent in the daily write budget. Cheaper
+ * costs a write per request, which is the scarce resource here: at 41 parts
+ * per 1 GB file it would be a real dent in the daily write budget. Cheaper
  * to use the native limiter, as the poll route already does.
  *
  * 120/min is far above anything reachable: at 25 MB per part, sustaining it

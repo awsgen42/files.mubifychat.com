@@ -35,7 +35,7 @@ export function LandingContent() {
           Send files and text between your phone and your PC — instantly
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-          Mubifiles moves a screenshot, a link, a password, or a 100 MB file from one device to another
+          Mubifiles moves a screenshot, a link, a password, or a 1 GB video from one device to another
           in seconds. No app to install, no account to create, nothing left behind — just open the site
           on both devices and share a 6-digit code. Everything you send is deleted automatically once
           the session closes.

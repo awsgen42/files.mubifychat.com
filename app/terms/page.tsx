@@ -3,8 +3,8 @@ import Link from 'next/link';
 import { ContentPageShell } from '@/components/ContentPageShell';
 import {
   ABUSE_EMAIL,
-  MAX_FILE_MB,
-  MAX_SESSION_MB,
+  MAX_FILE_LABEL,
+  MAX_SESSION_LABEL,
   SESSION_HARD_LIMIT_HOURS,
   SESSION_IDLE_MINUTES,
 } from '@/lib/policy';
@@ -104,7 +104,7 @@ export default function TermsPage() {
           Everything expires by design: a session closes after about {SESSION_IDLE_MINUTES} minutes
           of inactivity and no later than {SESSION_HARD_LIMIT_HOURS} hours after it began, and its
           contents are deleted. Do not use Mubifiles as storage or as your only copy of anything.
-          Current limits are {MAX_FILE_MB} MB per file and {MAX_SESSION_MB} MB per session, and may
+          Current limits are {MAX_FILE_LABEL} per file and {MAX_SESSION_LABEL} per session, and may
           change.
         </p>
       </section>

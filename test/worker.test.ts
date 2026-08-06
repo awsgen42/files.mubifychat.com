@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { contentDisposition, normalizeContentType, sanitizeFilename } from '../worker/files';
 import { generateCode, isValidCode, normalizeCode, timingSafeEqual } from '../worker/ids';
+import { MAX_FILE_BYTES, MAX_SESSION_BYTES } from '../shared/limits';
 import {
   UPLOAD_GRACE_SECONDS,
   hasUploadInFlight,
@@ -16,8 +17,8 @@ import { enforcePollLimit } from '../worker/ratelimit';
 const config: Config = {
   idleTtlSeconds: 900,
   maxTtlSeconds: 86_400,
-  maxFileBytes: 100 * 1024 * 1024,
-  maxSessionBytes: 500 * 1024 * 1024,
+  maxFileBytes: MAX_FILE_BYTES,
+  maxSessionBytes: MAX_SESSION_BYTES,
   maxItems: 50,
   maxTextChars: 100_000,
 };

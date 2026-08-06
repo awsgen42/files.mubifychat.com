@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
-import { formatBytes } from '@/lib/format';
+import { formatLimit } from '@/shared/limits';
 import { SendIcon, UploadIcon } from './Icons';
 import { Button, Card, cx } from './ui';
 
@@ -84,7 +84,7 @@ export function Composer({ busy, maxFileBytes, maxTextChars, onSendText, onSendF
             Choose files
           </Button>
           <p className="ml-auto text-xs text-muted-foreground">
-            Drop files anywhere here · up to {formatBytes(maxFileBytes)} each
+            Drop files anywhere here · up to {formatLimit(maxFileBytes)} each
           </p>
         </div>
 

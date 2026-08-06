@@ -23,6 +23,15 @@ export interface Env {
   /** Comma-separated origins allowed to call the API cross-origin. */
   ALLOWED_ORIGINS?: string;
 
+  /**
+   * Secret keying the per-IP byte quota counters. Without it the quota is not
+   * enforced at all — see worker/quota.ts for why that is the right failure
+   * mode rather than falling back to a reversible hash.
+   *
+   *   npx wrangler secret put QUOTA_SALT
+   */
+  QUOTA_SALT?: string;
+
   // Optional secrets enabling presigned browser -> R2 uploads.
   R2_ACCOUNT_ID?: string;
   R2_ACCESS_KEY_ID?: string;
@@ -39,6 +48,8 @@ export interface Config {
   maxTextChars: number;
 }
 
+import { MAX_FILE_BYTES, MAX_SESSION_BYTES } from '../shared/limits';
+
 function num(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -48,8 +59,11 @@ export function readConfig(env: Env): Config {
   return {
     idleTtlSeconds: num(env.SESSION_IDLE_TTL_SECONDS, 900),
     maxTtlSeconds: num(env.SESSION_MAX_TTL_SECONDS, 86_400),
-    maxFileBytes: num(env.MAX_FILE_BYTES, 100 * 1024 * 1024),
-    maxSessionBytes: num(env.MAX_SESSION_BYTES, 500 * 1024 * 1024),
+    // Defaults come from the shared constants every piece of copy is written
+    // from; wrangler.jsonc sets the same numbers so they can be tuned without
+    // a deploy. A test asserts the two agree.
+    maxFileBytes: num(env.MAX_FILE_BYTES, MAX_FILE_BYTES),
+    maxSessionBytes: num(env.MAX_SESSION_BYTES, MAX_SESSION_BYTES),
     maxItems: num(env.MAX_ITEMS, 50),
     maxTextChars: num(env.MAX_TEXT_CHARS, 100_000),
   };

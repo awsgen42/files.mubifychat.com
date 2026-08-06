@@ -6,6 +6,7 @@ import type {
   ParticipantRole,
   UploadTarget,
 } from '../shared/types';
+import { formatLimit } from '../shared/limits';
 import { UPLOAD_PART_BYTES, isValidPartManifest, partCount, usesMultipart } from '../shared/upload';
 import { hasPresignCredentials, readConfig, type Config, type Env } from './env';
 import { DOWNLOAD_CONTENT_TYPE, contentDisposition, normalizeContentType, sanitizeFilename } from './files';
@@ -23,6 +24,7 @@ import {
 import { isValidCode, randomId } from './ids';
 import { LIMITS, enforceRateLimit, enforcePollLimit, enforceUploadLimit } from './ratelimit';
 import { abortSessionUploads, abortUpload } from './multipart';
+import { adjustQuota, reserveQuota } from './quota';
 import { presignUpload } from './presign';
 import {
   authenticate,
@@ -197,15 +199,24 @@ async function createFileItemRoute(ctx: Ctx, code: string): Promise<Response> {
   const { session, role } = await requireAuth(ctx, code);
 
   const body = await readJson<{ name?: unknown; size?: unknown; contentType?: unknown }>(ctx.request);
-  const size = Number(body.size);
-  if (!Number.isFinite(size) || size < 0) throw badRequest('A numeric file size is required.');
+  // typeof before Number(): JSON null and true coerce to 0 and 1, which are
+  // perfectly good integers and would quietly create an item. Integer rather
+  // than merely finite, because a fractional size would give partCount a
+  // non-integral number of parts to reason about.
+  const size = typeof body.size === 'number' ? body.size : NaN;
+  if (!Number.isInteger(size) || size < 0) throw badRequest('A whole-number file size is required.');
   if (size > ctx.config.maxFileBytes) {
-    throw tooLarge(`Files are limited to ${Math.round(ctx.config.maxFileBytes / 1024 / 1024)} MB.`);
+    throw tooLarge(`Files are limited to ${formatLimit(ctx.config.maxFileBytes)}.`);
   }
   if (session.bytesUsed + size > ctx.config.maxSessionBytes) {
-    throw tooLarge('This session has reached its total storage limit.');
+    throw tooLarge(`This session has reached its ${formatLimit(ctx.config.maxSessionBytes)} total.`);
   }
   assertItemBudget(session, ctx.config);
+
+  // Charged before any bytes move, so an upload that would blow the day's
+  // budget is refused up front rather than after it has been transferred.
+  // Reconciled to the measured size at completion, and released on cancel.
+  await reserveQuota(ctx.env, clientIp(ctx.request), size, ctx.now);
 
   const item: StoredItem = {
     id: randomId(8),
@@ -304,10 +315,24 @@ async function uploadPartRoute(ctx: Ctx, code: string, itemId: string, rawPart: 
   if (!item.uploadId) throw badRequest('That upload is not resumable. Please start it again.');
   if (!ctx.request.body) throw badRequest('Missing request body.');
 
+  const partSize = item.partSize ?? UPLOAD_PART_BYTES;
   const partNumber = Number(rawPart);
-  const total = partCount(item.size ?? 0, item.partSize ?? UPLOAD_PART_BYTES);
+  const total = partCount(item.size ?? 0, partSize);
   if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > total) {
     throw badRequest('That part number is not part of this upload.');
+  }
+
+  // Without this the part number is the only bound on how much can be sent:
+  // the declared size buys N part slots, and each slot would otherwise accept
+  // a body up to the Workers request limit. At a 1 GB declared size that is
+  // 41 slots of 100 MB — four times the file, transferred and charged against
+  // nothing, which would make the daily byte quota meaningless.
+  const declaredLength = Number(ctx.request.headers.get('content-length'));
+  if (!Number.isInteger(declaredLength) || declaredLength < 0) {
+    throw badRequest('A part must declare its length.');
+  }
+  if (declaredLength > partSize) {
+    throw tooLarge(`A part may not exceed ${formatLimit(partSize)}.`);
   }
 
   const uploaded = await ctx.env.FILES
@@ -342,6 +367,11 @@ async function cancelItemRoute(ctx: Ctx, code: string, itemId: string): Promise<
   if (item.key) await ctx.env.FILES.delete(item.key).catch(() => undefined);
 
   session.bytesUsed = Math.max(0, session.bytesUsed - (item.size ?? 0));
+  // Releases the reservation. A cancelled upload did move some bytes, but the
+  // reservation was for the whole declared size, so returning it is closer to
+  // the truth than keeping it — and it stops a flaky connection burning the
+  // day's budget on uploads that never landed.
+  await adjustQuota(ctx.env, clientIp(ctx.request), -(item.size ?? 0), ctx.now);
   session.items = session.items.filter((i) => i.id !== itemId);
   touch(session, ctx.now);
   await saveSession(ctx.env, session, ctx.config, ctx.now);
@@ -374,9 +404,13 @@ async function completeUploadRoute(ctx: Ctx, code: string, itemId: string): Prom
     session.items = session.items.filter((i) => i.id !== item.id);
     touch(session, ctx.now);
     await saveSession(ctx.env, session, ctx.config, ctx.now);
+    // The bytes did move, so the day's budget keeps whatever was actually
+    // sent; only the difference from the reservation is corrected.
+    await adjustQuota(ctx.env, clientIp(ctx.request), actual - declared, ctx.now);
     throw tooLarge('That upload exceeded the size limit and was discarded.');
   }
 
+  await adjustQuota(ctx.env, clientIp(ctx.request), actual - declared, ctx.now);
   session.bytesUsed = projected;
   item.size = actual;
   item.state = 'ready';

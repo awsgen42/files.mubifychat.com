@@ -6,8 +6,8 @@ import {
   IP_HANDLING,
   IP_HANDLING_DETAIL,
   LOCAL_STORAGE_ITEMS,
-  MAX_FILE_MB,
-  MAX_SESSION_MB,
+  MAX_FILE_LABEL,
+  MAX_SESSION_LABEL,
   SESSION_HARD_LIMIT_HOURS,
   SESSION_IDLE_MINUTES,
   SUBPROCESSORS,
@@ -61,7 +61,7 @@ export default function PrivacyPage() {
           {[
             {
               t: 'The files you upload.',
-              d: `Stored as opaque objects. The storage path contains no filename and no session code — it is built from two random identifiers. The original filename is kept separately so the other device can save it under the right name. Limits are ${MAX_FILE_MB} MB per file and ${MAX_SESSION_MB} MB per session.`,
+              d: `Stored as opaque objects. The storage path contains no filename and no session code — it is built from two random identifiers. The original filename is kept separately so the other device can save it under the right name. Limits are ${MAX_FILE_LABEL} per file and ${MAX_SESSION_LABEL} per session.`,
             },
             {
               t: 'A session record.',
@@ -121,8 +121,8 @@ export default function PrivacyPage() {
       <section className="glass card p-5 sm:p-6">
         <h2 className="text-lg font-semibold">What your browser stores</h2>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          We set no cookies. Two values are kept in your browser&rsquo;s local storage and never sent
-          anywhere except as part of using the service:
+          We set no cookies. These values are kept in your browser&rsquo;s local storage and never
+          sent anywhere except as part of using the service:
         </p>
         <dl className="mt-4 grid gap-4">
           {LOCAL_STORAGE_ITEMS.map((item) => (
@@ -135,7 +135,7 @@ export default function PrivacyPage() {
           ))}
         </dl>
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-          Clearing site data in your browser removes both.
+          Clearing site data in your browser removes all of them.
         </p>
       </section>
 

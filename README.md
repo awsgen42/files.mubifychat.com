@@ -110,7 +110,27 @@ mode there are no R2 S3 credentials, so uploads take the Worker-proxied path.
    R2 Storage:Edit. Nothing else in the project needs one, so issue it for the
    task and revoke it afterwards rather than leaving it standing.
 
-2. **Optional: enable direct browser → R2 uploads.** Without these secrets the
+2. **Set the quota salt.**
+
+   ```bash
+   npx wrangler secret put QUOTA_SALT
+   ```
+
+   Paste any long random string when prompted — `openssl rand -base64 32`
+   produces a good one. It keys the per-IP daily byte quota.
+
+   The address is HMAC'd with this rather than hashed, because a plain
+   SHA-256 of an IPv4 is not anonymisation: the whole address space is 2^32,
+   so a digest is reversible by brute force in seconds. Without the secret the
+   HMAC is not.
+
+   **Without `QUOTA_SALT` the quota is not enforced at all.** That is
+   deliberate. The alternative would be keeping a reversible hash of an
+   address for a day, which is a worse trade than not having the quota — and
+   it means `wrangler dev`, which has no secret, never enforces it. Put the
+   value in `.dev.vars` if you want to exercise it locally.
+
+3. **Optional: enable direct browser → R2 uploads.** Without these secrets the
    Worker proxies upload bodies, which works but is capped by the Workers
    request-body limit. Create an R2 API token (Object Read & Write) and set:
 
@@ -143,7 +163,7 @@ mode there are no R2 S3 credentials, so uploads take the Worker-proxied path.
    ]
    ```
 
-3. **Lifecycle rules.** R2 dashboard → the bucket → Settings → Object lifecycle
+4. **Lifecycle rules.** R2 dashboard → the bucket → Settings → Object lifecycle
    rules. These are different actions, not alternatives — both are needed.
 
    | Rule | Prefix | Action | After |
@@ -175,7 +195,7 @@ mode there are no R2 S3 credentials, so uploads take the Worker-proxied path.
    floor, not a substitute — 7 days of abandoned parts is far longer than a
    session can live, so the 2-day rule above is what actually bounds it.
 
-4. **Deploy**
+5. **Deploy**
 
    ```bash
    npm run deploy
@@ -269,8 +289,8 @@ Set in `wrangler.jsonc` under `vars`:
 |---|---|---|
 | `SESSION_IDLE_TTL_SECONDS` | 900 | Sliding inactivity window |
 | `SESSION_MAX_TTL_SECONDS` | 86400 | Hard cap on session lifetime |
-| `MAX_FILE_BYTES` | 104857600 | Per-file limit (100 MB) |
-| `MAX_SESSION_BYTES` | 524288000 | Total per session (500 MB) |
+| `MAX_FILE_BYTES` | 1073741824 | Per-file limit (1 GB) |
+| `MAX_SESSION_BYTES` | 3221225472 | Total per session (3 GB) |
 | `MAX_ITEMS` | 50 | Items per session |
 | `MAX_TEXT_CHARS` | 100000 | Characters per text item |
 | `ALLOWED_ORIGINS` | `""` | Comma-separated origins allowed to call the API cross-origin. Empty means same-origin only. |

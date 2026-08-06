@@ -90,8 +90,8 @@ export const WRONG_TOOL: readonly { title: string; body: string }[] = [
     body: 'Use LocalSend. Local transfer will be faster than anything routed over the internet, and there is no size ceiling.',
   },
   {
-    title: 'Anything over 100 MB, on any network.',
-    body: 'Mubifiles caps a file at 100 MB and a session at 500 MB. PairDrop transfers peer-to-peer and imposes no hard size limit, so for a big file it is the better choice even across networks.',
+    title: 'Files past a gigabyte, on any network.',
+    body: 'Mubifiles caps a file at 1 GB and a session at 3 GB, which covers most of what people actually send. Past that the cap is absolute, and PairDrop has no ceiling at all because it transfers peer-to-peer — for a multi-gigabyte file it remains the better choice, even across networks.',
   },
   {
     title: 'A permanent link you can send to someone next week.',

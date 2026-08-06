@@ -66,8 +66,11 @@
     "SESSION_IDLE_TTL_SECONDS": "900",
     // Hard cap regardless of activity, seconds.
     "SESSION_MAX_TTL_SECONDS": "86400",
-    "MAX_FILE_BYTES": "104857600",
-    "MAX_SESSION_BYTES": "524288000",
+    // Keep in step with MAX_FILE_BYTES / MAX_SESSION_BYTES in shared/limits.ts,
+    // which is what every user-facing statement of the limits is generated
+    // from. test/limits.test.ts fails if these drift apart.
+    "MAX_FILE_BYTES": "1073741824",
+    "MAX_SESSION_BYTES": "3221225472",
     "MAX_ITEMS": "50",
     "MAX_TEXT_CHARS": "100000",
     // Origins allowed to call the API cross-origin, comma-separated. Only

@@ -46,6 +46,6 @@ export const FAQ: readonly FaqEntry[] = [
   },
   {
     q: 'How big can a file be?',
-    a: 'Individual files are capped at 100 MB and a single session at 500 MB. Those limits keep anonymous sharing fast and cheap to run. Text can be up to 100,000 characters, which is plenty for logs, snippets, or a long note.',
+    a: 'Individual files are capped at 1 GB and a single session at 3 GB. Those limits keep anonymous sharing fast and cheap to run. Text can be up to 100,000 characters, which is plenty for logs, snippets, or a long note.',
   },
 ];

@@ -75,6 +75,6 @@ export const NETWORKS_FAQ: readonly FaqEntry[] = [
   },
   {
     q: 'How large a file can I send?',
-    a: 'Up to 100 MB per file and 500 MB per session. That is a real limit the alternatives do not share: PairDrop transfers peer-to-peer and imposes no hard size cap, and LocalSend has none either. For anything larger, use LocalSend on a shared network or PairDrop across networks.',
+    a: 'Up to 1 GB per file and 3 GB per session. It is still a ceiling the alternatives do not have: PairDrop transfers peer-to-peer and imposes no hard size cap, and LocalSend has none either. For a file past a gigabyte, use LocalSend on a shared network or PairDrop across networks.',
   },
 ];

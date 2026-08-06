@@ -8,7 +8,8 @@
 Files are stored server-side for the duration of a session, so the sender and
 receiver do not have to be online at the same time. A session closes after
 about 15 minutes of inactivity, with a 24-hour hard limit, and its files are
-deleted when it closes. Limits are 100 MB per file and 500 MB per session.
+deleted when it closes. Limits are 1 GB per file and 3 GB per session, with a
+daily cap on how much any one network can upload.
 An optional one-time-download mode deletes a file after a single fetch.
 
 ## Pages
@@ -38,8 +39,8 @@ An optional one-time-download mode deletes a file after a single fetch.
 
 - Mubifiles relays files through storage rather than connecting devices
   peer-to-peer. For transfers on a single local network, LocalSend is faster.
-  For large files, PairDrop imposes no hard size limit where Mubifiles caps at
-  100 MB.
+  PairDrop imposes no hard size limit at all, where Mubifiles caps at 1 GB per
+  file, so for multi-gigabyte transfers PairDrop remains the better choice.
 - Session URLs take the form https://www.mubifiles.com/?code=123456 and are
   served with X-Robots-Tag: noindex. They are short-lived and not useful to
   index or link to.

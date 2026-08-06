@@ -64,8 +64,9 @@ describe('part geometry', () => {
     }
   });
 
-  it('keeps a 100 MB file to four parts', () => {
-    expect(partCount(100 * 1024 * 1024)).toBe(4);
+  it('keeps a 1 GB file inside R2\u2019s 10,000-part ceiling', () => {
+    expect(partCount(1024 * 1024 * 1024)).toBe(41);
+    expect(partCount(3 * 1024 * 1024 * 1024)).toBeLessThan(10_000);
   });
 });
 
