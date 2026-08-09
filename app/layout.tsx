@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { OG_IMAGE, SITE_URL } from '@/lib/seo';
 import { ServiceWorker } from '@/components/ServiceWorker';
+import { THEME_BACKGROUND } from '@/lib/theme';
 import { themeBootstrapScript } from '@/lib/useTheme';
 import './globals.css';
 
@@ -65,9 +66,27 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
+  /**
+   * The only thing that can colour the canvas before the stylesheet resolves.
+   *
+   * Next emits its stylesheet as the third tag in the head and our inline
+   * bootstrap script far below it — and a synchronous script that follows a
+   * pending stylesheet is blocked until that stylesheet loads. So the script
+   * cannot run before CSS, and nothing authored in CSS can help either: until
+   * it resolves, the browser paints its own default canvas, which is white.
+   * That is the frame between the dark splash and the dark app.
+   *
+   * This meta is parsed rather than computed, so the browser applies it
+   * immediately and picks the canvas from the system preference. Declaring
+   * both means the choice follows the user rather than being hardcoded.
+   */
+  colorScheme: 'light dark',
+
+  // The same values the bootstrap script paints with, so the browser chrome
+  // and the page cannot disagree about what colour the app is.
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f4f4fa' },
-    { media: '(prefers-color-scheme: dark)', color: '#16161f' },
+    { media: '(prefers-color-scheme: light)', color: THEME_BACKGROUND.light },
+    { media: '(prefers-color-scheme: dark)', color: THEME_BACKGROUND.dark },
   ],
 };
 

@@ -12,11 +12,28 @@ const VARIANTS: Record<Variant, string> = {
   // Kept solid rather than translucent: this is the one element that must stay
   // legible against whatever colour drifts behind it.
   primary:
-    'bg-accent text-accent-foreground shadow-lg shadow-accent/25 hover:shadow-accent/40 hover:brightness-110 disabled:opacity-40 disabled:shadow-none',
-  secondary: 'glass text-foreground hover:bg-surface-strong disabled:opacity-40',
-  ghost: 'text-muted-foreground hover:text-foreground hover:bg-surface-muted disabled:opacity-40',
-  danger: 'glass text-danger border-danger/30 hover:bg-danger/10 disabled:opacity-40',
+    'bg-accent text-accent-foreground shadow-lg shadow-accent/25 hover:shadow-accent/40 hover:brightness-110',
+  secondary: 'glass text-foreground hover:bg-surface-strong',
+  ghost: 'text-muted-foreground hover:text-foreground hover:bg-surface-muted',
+  danger: 'glass text-danger border-danger/30 hover:bg-danger/10',
 };
+
+/**
+ * One disabled treatment for every variant, applied after them so it wins.
+ *
+ * Dimming each variant in place did not work: the same opacity over a solid
+ * accent and over a translucent glass fill lands in completely different
+ * places, so a disabled primary still read as a live purple button next to a
+ * disabled secondary that had all but vanished. Two controls in the same state
+ * looked like two different states — visible whenever the app goes offline and
+ * disables Start and Connect together.
+ *
+ * So a disabled button stops being its variant. It drops the fill, the accent
+ * and the shadow and becomes one neutral, recessed shape, whatever it was.
+ */
+const DISABLED =
+  'disabled:cursor-not-allowed disabled:active:scale-100 disabled:bg-surface-muted ' +
+  'disabled:text-muted-foreground disabled:shadow-none disabled:opacity-60';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
@@ -27,8 +44,9 @@ export function Button({ variant = 'primary', className, children, ...props }: B
     <button
       className={cx(
         'inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium',
-        'transition-all duration-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:active:scale-100',
+        'transition-all duration-200 active:scale-[0.98]',
         VARIANTS[variant],
+        DISABLED,
         className,
       )}
       {...props}

@@ -4,8 +4,8 @@
   "description": "Move text and files between your phone and your PC in seconds.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#16161f",
-  "theme_color": "#16161f",
+  "background_color": "#0b0d16",
+  "theme_color": "#0b0d16",
   "icons": [
     {
       "src": "/icon-192.png",
