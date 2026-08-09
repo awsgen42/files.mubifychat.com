@@ -20,5 +20,8 @@
     "shared/**/*.ts",
     "test/**/*.ts",
     "lib/format.ts"
+  ],
+  "exclude": [
+    "test/reachability.test.ts"
   ]
 }

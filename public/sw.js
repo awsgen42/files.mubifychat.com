@@ -18,6 +18,19 @@ const PRECACHE = ['__PRECACHE__'];
 /** The navigation fallback: the app shell, which renders without the network. */
 const SHELL = '/';
 
+/**
+ * How long a navigation may wait for the network before the cached shell is
+ * used instead.
+ *
+ * Without a bound, "network first" means "TCP timeout first" on the case this
+ * whole feature exists for: a hotspot or captive portal that accepts the
+ * connection and then goes nowhere. The socket stays open, nothing arrives,
+ * and the user watches a blank page for half a minute before the fallback
+ * they already had on disk is used. Three seconds is far longer than a real
+ * response takes and far shorter than a stall is worth waiting through.
+ */
+const NAVIGATION_TIMEOUT_MS = 3000;
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
@@ -56,11 +69,7 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/api/')) return;
 
   if (request.mode === 'navigate') {
-    // Network first, so a returning visitor gets the current build rather than
-    // whatever was cached. Session URLs (/?code=123456) are deliberately not
-    // written to the cache — the shell is enough to render them offline, and
-    // caching one would leave a stale code in storage.
-    event.respondWith(fetch(request).catch(() => caches.match(SHELL).then((cached) => cached ?? Response.error())));
+    event.respondWith(navigate(request));
     return;
   }
 
@@ -68,3 +77,28 @@ self.addEventListener('fetch', (event) => {
   // is by definition current, so there is nothing to revalidate.
   event.respondWith(caches.match(request).then((cached) => cached ?? fetch(request)));
 });
+
+/**
+ * Network first, but only for as long as the network looks like answering.
+ *
+ * A returning visitor should get the current build rather than whatever was
+ * cached, so the network is tried first — but a request that hangs is treated
+ * as a failure rather than waited out. Session URLs (/?code=123456) are
+ * deliberately never written to the cache: the shell renders them, and caching
+ * one would leave a stale code on the device.
+ */
+async function navigate(request) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), NAVIGATION_TIMEOUT_MS);
+  try {
+    return await fetch(request, { signal: controller.signal });
+  } catch {
+    // The page itself if we have it — every built page is precached, and
+    // serving the shell for /privacy/ would put the homepage at the privacy
+    // URL. The shell is the fallback for what we do not have, which is any
+    // URL that is not a built page: a session link, or a mistyped path.
+    return (await caches.match(request)) ?? (await caches.match(SHELL)) ?? Response.error();
+  } finally {
+    clearTimeout(timeout);
+  }
+}

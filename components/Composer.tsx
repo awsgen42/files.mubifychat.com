@@ -96,7 +96,7 @@ export function Composer({
           </Button>
           <p className="ml-auto text-xs text-muted-foreground">
             {offline
-              ? 'Offline — sending resumes when the connection returns'
+              ? 'Can’t reach Mubifiles — sending resumes when the connection does'
               : `Drop files anywhere here · up to ${formatLimit(maxFileBytes)} each`}
           </p>
         </div>

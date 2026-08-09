@@ -5,10 +5,16 @@ import type { SessionView } from '@/shared/types';
 import type { UploadedPart } from '@/shared/types';
 import { partCount, partRange } from '@/shared/upload';
 import { ApiError, api, isRetryable, uploadFile, uploadPart } from './api';
+import { ensureReachable, reportReachable, setPollDriven } from './reachability';
 import { PART_RETRIES, PART_RETRY_BASE_MS, POLL_ACTIVE_MS, POLL_IDLE_AFTER_MS, POLL_IDLE_MS, SPEED_WINDOW_MS } from './tuning';
 import { beginUpload, findResumable, forgetSessionUploads, forgetUpload, markPaused, recordPart } from './uploads';
 
 const STORAGE_KEY = 'mubifiles.session';
+
+/** A request we cancelled ourselves says nothing about the network. */
+function isAbort(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError';
+}
 
 export interface Transfer {
   itemId: string;
@@ -158,6 +164,10 @@ export function useShareSession(): ShareSession {
       timer = window.setTimeout(run, quietFor > POLL_IDLE_AFTER_MS ? POLL_IDLE_MS : POLL_ACTIVE_MS);
     };
 
+    // While this loop runs it hits the API every few seconds, so its outcome
+    // is a better reachability reading than a probe and costs nothing extra.
+    setPollDriven(true);
+
     const run = async () => {
       if (cancelled) return;
       // Keep the timer alive while backgrounded but skip the request; the
@@ -171,6 +181,7 @@ export function useShareSession(): ShareSession {
       controller = new AbortController();
       try {
         const next = await api.getSession(current.code, current.token, controller.signal);
+        reportReachable(true);
         if (cancelled) return;
         if (next.version !== lastVersion) {
           lastVersion = next.version;
@@ -178,6 +189,12 @@ export function useShareSession(): ShareSession {
         }
         setSession(next);
       } catch (err) {
+        // An ApiError means the server answered, so it is reachable whatever
+        // the status said. A poll we aborted ourselves says nothing. Anything
+        // else is the request never landing.
+        if (err instanceof ApiError) reportReachable(true);
+        else if (!isAbort(err)) reportReachable(false);
+
         // A 404/401 means the session is gone for good. Everything else —
         // offline, an aborted poll, a 429 from the poll limiter — is transient
         // and simply retried on the next tick.
@@ -202,6 +219,7 @@ export function useShareSession(): ShareSession {
 
     return () => {
       cancelled = true;
+      setPollDriven(false);
       controller?.abort();
       window.clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisibility);
@@ -220,9 +238,20 @@ export function useShareSession(): ShareSession {
     }
   }, []);
 
+  /**
+   * Checked immediately before the request rather than relied on from render
+   * state, which may be seconds stale. Usually free: the reading is cached, so
+   * a user who has just focused the tab pays nothing for this.
+   */
+  const requireReachable = useCallback(async () => {
+    if (await ensureReachable()) return;
+    throw new Error('Cannot reach Mubifiles right now. Check your connection and try again.');
+  }, []);
+
   const create = useCallback(
     (oneShot: boolean) =>
       run(async () => {
+        await requireReachable();
         const result = await api.createSession(oneShot);
         markActive();
         const next = { code: result.code, token: result.token };
@@ -230,12 +259,13 @@ export function useShareSession(): ShareSession {
         setCredentials(next);
         setSession(result.session);
       }),
-    [markActive, run],
+    [markActive, requireReachable, run],
   );
 
   const join = useCallback(
     (code: string) =>
       run(async () => {
+        await requireReachable();
         const result = await api.joinSession(code);
         markActive();
         const next = { code: result.code, token: result.token };
@@ -243,7 +273,7 @@ export function useShareSession(): ShareSession {
         setCredentials(next);
         setSession(result.session);
       }),
-    [markActive, run],
+    [markActive, requireReachable, run],
   );
 
   const sendText = useCallback(

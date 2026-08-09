@@ -78,6 +78,14 @@ export const api = {
   endSession: (code: string, token: string) =>
     request<{ ok: true }>(`/api/sessions/${code}/end`, { method: 'POST' }, token),
 
+  /**
+   * Reachability probe target. `/api/` matches no route, so the Worker answers
+   * 404 without touching KV, without a rate limiter, and without any chance of
+   * being mistaken for a real request — every counted endpoint is further down
+   * the path. A 404 is a perfectly good "yes, I am here".
+   */
+  probeUrl: () => apiUrl('/api/'),
+
   // A plain browser navigation, so the token rides in the query string rather
   // than a header — which also means no CORS preflight on downloads.
   downloadUrl: (code: string, token: string, itemId: string) =>
