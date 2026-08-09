@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { OG_IMAGE, SITE_URL } from '@/lib/seo';
+import { ServiceWorker } from '@/components/ServiceWorker';
 import { themeBootstrapScript } from '@/lib/useTheme';
 import './globals.css';
 
@@ -108,7 +109,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <ServiceWorker />
+      </body>
     </html>
   );
 }

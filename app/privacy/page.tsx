@@ -5,6 +5,7 @@ import {
   ABUSE_EMAIL,
   IP_HANDLING,
   IP_HANDLING_DETAIL,
+  CACHE_STORAGE,
   LOCAL_STORAGE_ITEMS,
   MAX_FILE_LABEL,
   MAX_SESSION_LABEL,
@@ -135,7 +136,11 @@ export default function PrivacyPage() {
           ))}
         </dl>
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-          Clearing site data in your browser removes all of them.
+          The site also installs a service worker, which keeps a cache on your device so it opens
+          without a connection. {CACHE_STORAGE.what} {CACHE_STORAGE.why}
+        </p>
+        <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+          Clearing site data in your browser removes all of it, the cache included.
         </p>
       </section>
 

@@ -7,13 +7,23 @@ import { Button, Card, cx } from './ui';
 
 interface ComposerProps {
   busy: boolean;
+  /** No connection: a send would stall rather than fail cleanly. */
+  offline?: boolean;
   maxFileBytes: number;
   maxTextChars: number;
   onSendText: (text: string) => void;
   onSendFiles: (files: File[]) => void;
 }
 
-export function Composer({ busy, maxFileBytes, maxTextChars, onSendText, onSendFiles }: ComposerProps) {
+export function Composer({
+  busy,
+  offline = false,
+  maxFileBytes,
+  maxTextChars,
+  onSendText,
+  onSendFiles,
+}: ComposerProps) {
+  const blocked = busy || offline;
   const [text, setText] = useState('');
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -23,12 +33,13 @@ export function Composer({ busy, maxFileBytes, maxTextChars, onSendText, onSendF
 
   const submitText = useCallback(() => {
     const value = text.trim();
-    if (!value || busy) return;
+    if (!value || blocked) return;
     onSendText(value);
     setText('');
-  }, [busy, onSendText, text]);
+  }, [blocked, onSendText, text]);
 
   const pickFiles = (files: FileList | null) => {
+    if (blocked) return;
     const list = Array.from(files ?? []);
     if (list.length > 0) onSendFiles(list);
   };
@@ -75,16 +86,18 @@ export function Composer({ busy, maxFileBytes, maxTextChars, onSendText, onSendF
         />
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Button onClick={submitText} disabled={busy || text.trim().length === 0}>
+          <Button onClick={submitText} disabled={blocked || text.trim().length === 0}>
             <SendIcon />
             Send text
           </Button>
-          <Button variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={busy}>
+          <Button variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={blocked}>
             <UploadIcon />
             Choose files
           </Button>
           <p className="ml-auto text-xs text-muted-foreground">
-            Drop files anywhere here · up to {formatLimit(maxFileBytes)} each
+            {offline
+              ? 'Offline — sending resumes when the connection returns'
+              : `Drop files anywhere here · up to ${formatLimit(maxFileBytes)} each`}
           </p>
         </div>
 

@@ -13,10 +13,12 @@ import { StartScreen } from '@/components/StartScreen';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { TransferList } from '@/components/TransferList';
 import { Button } from '@/components/ui';
+import { useOnline } from '@/lib/useOnline';
 import { useShareSession } from '@/lib/useShareSession';
 
 export default function Home() {
   const share = useShareSession();
+  const online = useOnline();
   const [initialCode, setInitialCode] = useState<string>();
 
   // A scanned QR opens `/?code=123456`; strip it from the URL afterwards so a
@@ -77,6 +79,25 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Ahead of the failure rather than after it: without this the code
+          field and the upload button stay live while offline, and the only
+          feedback is a request that never resolves. The page itself keeps
+          working — everything already on screen is readable, and the notice
+          clears itself when the connection returns. */}
+      {!online && (
+        <div
+          role="status"
+          className="glass mt-5 flex items-start gap-2.5 rounded-xl border-border-contrast p-3.5 text-sm"
+        >
+          <AlertIcon width={18} height={18} className="mt-0.5 shrink-0 text-muted-foreground" />
+          <span className="flex-1 text-muted-foreground">
+            <span className="font-medium text-foreground">You are offline.</span> Starting or joining
+            a session needs a connection. This page will keep working, and the buttons come back on
+            their own once you are back online.
+          </span>
+        </div>
+      )}
+
       {share.error && (
         <div
           role="alert"
@@ -116,6 +137,7 @@ export default function Home() {
               <>
                 <Composer
                   busy={share.busy}
+                  offline={!online}
                   maxFileBytes={share.session.limits.maxFileBytes}
                   maxTextChars={share.session.limits.maxTextChars}
                   onSendText={(text) => void share.sendText(text)}
@@ -141,6 +163,7 @@ export default function Home() {
         ) : (
           <StartScreen
             busy={share.busy || !share.ready}
+            offline={!online}
             initialCode={initialCode}
             onCreate={(oneShot) => void share.create(oneShot)}
             onJoin={(code) => void share.join(code)}

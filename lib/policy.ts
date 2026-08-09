@@ -5,6 +5,7 @@
  * These are not marketing copy. Each one is derived from the implementation
  * and must be updated together with it:
  *
+ *   browser storage     lib/uploads.ts, lib/useTheme.ts, public/sw.js
  *   idle / hard limit   wrangler.jsonc SESSION_IDLE_TTL_SECONDS, SESSION_MAX_TTL_SECONDS
  *   size limits         shared/limits.ts, mirrored in wrangler.jsonc
  *   IP handling         worker/ratelimit.ts and worker/quota.ts
@@ -74,6 +75,16 @@ export const LOCAL_STORAGE_ITEMS = [
     why: 'So the page does not flash the wrong theme on load.',
   },
 ] as const;
+
+/**
+ * What the service worker keeps, which is a different kind of storage from the
+ * values above and worth naming separately — someone auditing the site will
+ * see a Cache Storage entry in devtools and should find it described here.
+ */
+export const CACHE_STORAGE = {
+  what: 'A copy of the pages, scripts and images that make up the site, so it still opens when you are offline.',
+  why: 'Nothing you send or receive is in it. Files and text go straight to the server and are never written to this cache — it holds only the site itself, the same files anyone downloads by visiting.',
+} as const;
 
 /** Third parties that process data on our behalf. */
 export const SUBPROCESSORS = [

@@ -19,13 +19,18 @@ const CODE_LENGTH = 6;
 
 interface StartScreenProps {
   busy: boolean;
+  /** No connection: both actions would hang, so neither is offered. */
+  offline?: boolean;
   /** Prefilled from a scanned QR link (?code=123456). */
   initialCode?: string;
   onCreate: (oneShot: boolean) => void;
   onJoin: (code: string) => void;
 }
 
-export function StartScreen({ busy, initialCode, onCreate, onJoin }: StartScreenProps) {
+export function StartScreen({ busy, offline = false, initialCode, onCreate, onJoin }: StartScreenProps) {
+  // Everything that would reach the network is gated on this, including the
+  // auto-join below — a scanned QR must not fire a doomed request either.
+  const blocked = busy || offline;
   const [code, setCode] = useState(initialCode ?? '');
   const [oneShot, setOneShot] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -34,11 +39,11 @@ export function StartScreen({ busy, initialCode, onCreate, onJoin }: StartScreen
   // Joining as soon as the sixth digit lands removes a tap on mobile, but only
   // once per code so a rejected join doesn't retry in a loop.
   useEffect(() => {
-    if (code.length === CODE_LENGTH && attemptedRef.current !== code && !busy) {
+    if (code.length === CODE_LENGTH && attemptedRef.current !== code && !blocked) {
       attemptedRef.current = code;
       onJoin(code);
     }
-  }, [code, busy, onJoin]);
+  }, [code, blocked, onJoin]);
 
   const send = (
     <Card>
@@ -58,7 +63,7 @@ export function StartScreen({ busy, initialCode, onCreate, onJoin }: StartScreen
         </span>
       </label>
 
-      <Button className="mt-4 w-full" onClick={() => onCreate(oneShot)} disabled={busy}>
+      <Button className="mt-4 w-full" onClick={() => onCreate(oneShot)} disabled={blocked}>
         <UploadIcon />
         {START_ACTION}
       </Button>
@@ -77,7 +82,7 @@ export function StartScreen({ busy, initialCode, onCreate, onJoin }: StartScreen
         className="mt-4 flex flex-col gap-3 sm:flex-row"
         onSubmit={(event) => {
           event.preventDefault();
-          if (code.length === CODE_LENGTH) {
+          if (code.length === CODE_LENGTH && !blocked) {
             attemptedRef.current = code;
             onJoin(code);
           }
@@ -92,9 +97,10 @@ export function StartScreen({ busy, initialCode, onCreate, onJoin }: StartScreen
           pattern="[0-9]*"
           placeholder="000 000"
           aria-label="Session code"
+          disabled={offline}
           className="glass-input w-full flex-1 px-4 py-3 text-center font-mono text-2xl tracking-[0.3em] outline-none placeholder:text-muted-foreground/40 sm:text-left"
         />
-        <Button type="submit" variant="secondary" disabled={busy || code.length !== CODE_LENGTH}>
+        <Button type="submit" variant="secondary" disabled={blocked || code.length !== CODE_LENGTH}>
           <LinkIcon />
           {CONNECT_ACTION}
         </Button>
