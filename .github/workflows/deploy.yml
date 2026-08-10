@@ -1,10 +1,13 @@
 name: CI
 
-# Checks only. Deployment is Cloudflare's job now: Workers Builds watches the
-# repository and runs the build itself, so nothing here ships anything.
+# Checks only — nothing here ships anything. Both deploys watch the repository
+# themselves: Workers Builds runs typecheck and tests before it deploys the
+# Worker, but Vercel runs neither, so on a branch it deploys from, this job is
+# the only thing standing between a push and production. Every branch either
+# deploy watches belongs in the push list below.
 on:
   push:
-    branches: [main]
+    branches: [main, claude/new-session-lhconi]
   pull_request:
 
 concurrency:
