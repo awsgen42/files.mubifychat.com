@@ -69,8 +69,21 @@ export class LanUnavailableError extends Error {
  * the local network — turning "direct on your own Wi-Fi" into "peer-to-peer
  * across the internet", which is a different feature with different privacy
  * properties and a different failure surface. With an empty list the only
- * candidates are host addresses, so this either works on the local network or
- * does not work at all, which is exactly the promise being made.
+ * candidates are host ones, so this either works on the local network or does
+ * not work at all, which is exactly the promise being made.
+ *
+ * A host candidate is not necessarily an address. Chrome, on a page that has
+ * never called getUserMedia — which this app never does — replaces it with a
+ * random <uuid>.local name and relies on mDNS to resolve it, so the SDP we
+ * store carries no address at all. Measured, not assumed: see the note on
+ * /privacy, which says the same thing and is equally careful to claim it only
+ * for the browser it was checked in.
+ *
+ * The practical consequence is that a direct transfer needs mDNS to work
+ * between the two devices. On a normal LAN it does. In a container it does
+ * not, which is why the end-to-end test launches Chrome with
+ * --disable-features=WebRtcHideLocalIpsWithMdns — a test-environment
+ * workaround, and one that makes any SDP captured under it unrepresentative.
  */
 export function createPeerConnection(): RTCPeerConnection {
   return new RTCPeerConnection({ iceServers: [] });

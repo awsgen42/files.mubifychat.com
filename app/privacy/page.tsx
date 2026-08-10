@@ -86,9 +86,10 @@ export default function PrivacyPage() {
           When both devices are on the same network you can send a file straight from one to the
           other. Those bytes never reach us — there is no upload, no object, and nothing to delete
           afterwards. What we do hold for that is the short handshake the two devices need in order
-          to find each other, which lives in the session record and goes when the session does. It
-          describes your device&rsquo;s addresses on its own local network, and the other device
-          sees it; that is what makes the direct connection possible.
+          to find each other, which lives in the session record and goes when the session does. The
+          other device sees it — that is what makes the direct connection possible. What is
+          <em> in</em> it depends on your browser; the IP addresses section below says what we
+          measured.
         </p>
       </section>
 
