@@ -35,3 +35,38 @@ export const PART_RETRY_BASE_MS = 1_000;
  * moment and vanishes is worse than none.
  */
 export const PAUSE_STOP_NOW_THRESHOLD_S = 5;
+
+/* ------------------------------------------------------------------ */
+/* Direct (LAN) transfer                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * How long the sender waits for the peer's answer.
+ *
+ * The handshake travels by poll, so the floor is set by POLL_ACTIVE_MS at each
+ * end — offer posted, peer polls, peer answers, sender polls — which is around
+ * two intervals when both tabs are in front and longer when one has backed off
+ * to POLL_IDLE_MS. 30s covers the slow case without leaving someone watching a
+ * spinner for a peer that is not going to reply.
+ */
+export const LAN_ANSWER_TIMEOUT_MS = 30_000;
+
+/**
+ * Signals older than this are ignored.
+ *
+ * An abandoned attempt leaves its offer in the session until the same
+ * participant posts another. Without an age check, a device joining later
+ * would answer a handshake nobody is waiting on, and the answer would sit
+ * there unread.
+ */
+export const LAN_SIGNAL_MAX_AGE_MS = 60_000;
+
+/**
+ * Above this, a direct transfer is suggested rather than merely available.
+ *
+ * Small files are not worth the handshake: the cloud path starts instantly and
+ * a 5 MB upload is over before a direct connection would have finished
+ * negotiating. The saving only becomes real once the transfer itself is the
+ * slow part.
+ */
+export const LAN_SUGGEST_BYTES = 100 * 1024 * 1024;

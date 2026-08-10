@@ -9,12 +9,21 @@ export type { UploadedPart };
 
 export type SessionStatus = 'waiting' | 'active' | 'closed';
 
-export type ItemKind = 'text' | 'file';
+/**
+ * `signal` is not something a user sent — it is one end of a WebRTC handshake,
+ * riding along in the session document so a direct transfer needs no separate
+ * signalling service. It is filtered out of everything user-facing: the item
+ * list, the item count, and the per-session item budget.
+ */
+export type ItemKind = 'text' | 'file' | 'signal';
 
 /** A file item is only downloadable once its upload has been confirmed. */
 export type ItemState = 'pending' | 'ready' | 'consumed';
 
 export type ParticipantRole = 'host' | 'guest';
+
+/** Which half of a WebRTC handshake a signal item carries. */
+export type SignalRole = 'offer' | 'answer';
 
 export interface ShareItem {
   id: string;
@@ -29,6 +38,14 @@ export interface ShareItem {
   name?: string;
   size?: number;
   contentType?: string;
+  /**
+   * Signal items only: which half of the handshake this is. Distinct from
+   * `from`, which says which participant posted it — an offer and an answer
+   * are always posted by opposite participants.
+   */
+  role?: SignalRole;
+  /** Signal items only: the session description, capped at MAX_SDP_BYTES. */
+  sdp?: string;
   /** Number of completed downloads, used by one-shot mode. */
   downloads: number;
 }

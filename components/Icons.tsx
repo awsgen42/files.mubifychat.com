@@ -78,6 +78,13 @@ export const SendIcon = (props: IconProps) => (
   </Icon>
 );
 
+/** Direct transfer: bytes taking the short path rather than going via a server. */
+export const BoltIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12l1-8.5Z" />
+  </Icon>
+);
+
 export const LinkIcon = (props: IconProps) => (
   <Icon {...props}>
     <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" />

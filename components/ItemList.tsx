@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { SessionView, ShareItem } from '@/shared/types';
+import { isUserItem } from '@/shared/signal';
 import { formatBytes, formatTime } from '@/lib/format';
 import type { Transfer } from '@/lib/useShareSession';
 import { CheckIcon, CopyIcon, DownloadIcon, FileIcon, TextIcon } from './Icons';
@@ -24,7 +25,10 @@ interface ItemListProps {
 
 export function ItemList({ session, downloadUrl, transfers, onCancel }: ItemListProps) {
   // Newest first — on a phone that keeps the latest item above the fold.
-  const items = [...session.items].sort((a, b) => b.createdAt - a.createdAt);
+  // Signals are filtered out here rather than anywhere later: they are one end
+  // of a WebRTC handshake, not something a person sent, and they would
+  // otherwise appear as rows and inflate the count.
+  const items = session.items.filter(isUserItem).sort((a, b) => b.createdAt - a.createdAt);
 
   return (
     <Card>

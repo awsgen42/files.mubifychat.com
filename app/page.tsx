@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CodePanel } from '@/components/CodePanel';
 import { Composer } from '@/components/Composer';
 import { AppColumns } from '@/components/AppColumns';
-import { AlertIcon, LogoMark, PowerIcon } from '@/components/Icons';
+import { AlertIcon, LogoMark, PowerIcon, UploadIcon } from '@/components/Icons';
 import { ItemList } from '@/components/ItemList';
 import { LandingContent } from '@/components/LandingContent';
 import { QrCode } from '@/components/QrCode';
@@ -144,7 +144,38 @@ export default function Home() {
                   maxTextChars={share.session.limits.maxTextChars}
                   onSendText={(text) => void share.sendText(text)}
                   onSendFiles={(files) => void share.sendFiles(files)}
+                  onSendFilesDirect={(files) => void share.sendFilesDirect(files)}
+                  canSendDirect={share.canSendDirect}
                 />
+
+                {/* A direct transfer failing is a normal outcome — different
+                    networks, or an access point that keeps its clients apart —
+                    so it is explained rather than reported as an error, and
+                    the way out is one button rather than the file picker
+                    again. */}
+                {share.lanState === 'unavailable' && (
+                  <div
+                    role="status"
+                    className="glass mt-5 flex items-start gap-2.5 rounded-xl border-border-contrast p-3.5 text-sm"
+                  >
+                    <AlertIcon width={18} height={18} className="mt-0.5 shrink-0 text-muted-foreground" />
+                    <div className="flex-1">
+                      <p className="text-muted-foreground">
+                        <span className="font-medium text-foreground">
+                          Couldn&rsquo;t connect the two devices directly.
+                        </span>{' '}
+                        They are probably on different networks — or on Wi-Fi that keeps its devices
+                        from talking to each other, which is common on guest and public networks.
+                        Sending through the cloud works anywhere.
+                      </p>
+                      <Button className="mt-3" onClick={() => void share.retryViaCloud()} disabled={share.busy}>
+                        <UploadIcon />
+                        Send via cloud instead
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 <TransferList
                   transfers={share.transfers}
                   onCancel={(id) => void share.cancelUpload(id)}
@@ -152,6 +183,7 @@ export default function Home() {
                   onStopNow={share.stopNow}
                   onResume={(id) => void share.resumeUpload(id)}
                   canResume={share.canResume}
+                  onDismiss={share.dismissTransfer}
                 />
                 <ItemList
                   session={share.session}

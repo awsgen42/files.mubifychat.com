@@ -5,8 +5,27 @@ import type { SessionView } from '@/shared/types';
 import type { UploadedPart } from '@/shared/types';
 import { partCount, partRange } from '@/shared/upload';
 import { ApiError, api, isRetryable, uploadFile, uploadPart } from './api';
+import {
+  LanUnavailableError,
+  answerOffer,
+  chunkSizeFor,
+  createOffer,
+  isLanSupported,
+  receiveFiles,
+  sendFile,
+  whenOpen,
+} from './lan';
 import { ensureReachable, reportReachable, setPollDriven } from './reachability';
-import { PART_RETRIES, PART_RETRY_BASE_MS, POLL_ACTIVE_MS, POLL_IDLE_AFTER_MS, POLL_IDLE_MS, SPEED_WINDOW_MS } from './tuning';
+import {
+  LAN_ANSWER_TIMEOUT_MS,
+  LAN_SIGNAL_MAX_AGE_MS,
+  PART_RETRIES,
+  PART_RETRY_BASE_MS,
+  POLL_ACTIVE_MS,
+  POLL_IDLE_AFTER_MS,
+  POLL_IDLE_MS,
+  SPEED_WINDOW_MS,
+} from './tuning';
 import { beginUpload, findResumable, forgetSessionUploads, forgetUpload, markPaused, recordPart } from './uploads';
 
 const STORAGE_KEY = 'mubifiles.session';
@@ -32,7 +51,24 @@ export interface Transfer {
    * the etag does not exist until the part completes.
    */
   status?: 'pausing' | 'paused';
+  /**
+   * Which way the bytes are moving. Cloud uploads are always outbound; a
+   * direct transfer is the only thing that can be inbound, because on the
+   * cloud path an arriving file is a download the user starts by hand.
+   */
+  direction: 'send' | 'receive';
+  /** 'lan' bytes go device to device and never touch R2. */
+  via: 'r2' | 'lan';
+  /**
+   * A finished direct receive. There is no server item behind it — the file
+   * only ever existed on these two devices — so the blob is held here until
+   * the user saves it.
+   */
+  received?: { blob: Blob; name: string };
 }
+
+/** Where a direct transfer has got to, for the UI to explain itself. */
+export type LanState = 'idle' | 'connecting' | 'transferring' | 'unavailable';
 
 interface Credentials {
   code: string;
@@ -71,7 +107,16 @@ export interface ShareSession {
   join: (code: string) => Promise<void>;
   sendText: (text: string) => Promise<void>;
   sendFiles: (files: File[]) => Promise<void>;
+  /** Device to device over the local network; the file never reaches R2. */
+  sendFilesDirect: (files: File[]) => Promise<void>;
+  lanState: LanState;
+  /** Whether a direct transfer is worth offering: a peer has to be here. */
+  canSendDirect: boolean;
   end: () => Promise<void>;
+  /** Sends a failed direct attempt through R2 instead, without re-picking. */
+  retryViaCloud: () => Promise<void>;
+  /** Drops a finished direct receive once it has been saved. */
+  dismissTransfer: (itemId: string) => void;
   cancelUpload: (itemId: string) => Promise<void>;
   pauseUpload: (itemId: string) => void;
   /** Abandons the part in flight rather than waiting for it to finish. */
@@ -89,6 +134,7 @@ export function useShareSession(): ShareSession {
   const [credentials, setCredentials] = useState<Credentials | null>(null);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [lanState, setLanState] = useState<LanState>('idle');
 
   // Polling reads these without wanting to re-subscribe on every change.
   const credentialsRef = useRef<Credentials | null>(null);
@@ -111,6 +157,37 @@ export function useShareSession(): ShareSession {
    * tab means choosing the file again.
    */
   const pausedFiles = useRef(new Map<string, File>());
+
+  /* --- Direct (LAN) transfer ------------------------------------- */
+
+  /** The live peer connection, if a direct transfer is up. */
+  const lanPeer = useRef<RTCPeerConnection | null>(null);
+  /** Removes the receive listener when the connection goes away. */
+  const lanTeardown = useRef<(() => void) | null>(null);
+  /** Signal item ids already acted on, so a poll cannot replay a handshake. */
+  const handledSignals = useRef(new Set<string>());
+  /** Set while the sender is waiting for the peer's answer to arrive by poll. */
+  const answerWaiter = useRef<((sdp: string) => void) | null>(null);
+  const lanAborts = useRef(new Map<string, AbortController>());
+  /** Transfers have no server item on this path, so ids are minted locally. */
+  const lanCounter = useRef(0);
+  /**
+   * The files of the last direct attempt, kept so a failed one can be sent by
+   * the cloud path without a second trip through the file picker.
+   */
+  const lastDirectFiles = useRef<File[]>([]);
+
+  const closeLan = useCallback(() => {
+    lanTeardown.current?.();
+    lanTeardown.current = null;
+    lanPeer.current?.close();
+    lanPeer.current = null;
+    answerWaiter.current = null;
+  }, []);
+
+  // A direct connection is tied to the tab, not the session: it cannot outlive
+  // the page, and leaving it open would hold the peer's channel too.
+  useEffect(() => closeLan, [closeLan]);
 
   const lastChangeRef = useRef<number>(Date.now());
   const markActive = useCallback(() => {
@@ -315,6 +392,8 @@ export function useShareSession(): ShareSession {
               total: file.size,
               bytesPerSecond: 0,
               secondsRemaining: 0,
+              direction: 'send',
+              via: 'r2',
             },
           ]);
 
@@ -433,6 +512,231 @@ export function useShareSession(): ShareSession {
   );
 
   /**
+   * Progress reporting for one transfer, whichever path is moving the bytes.
+   * Both the cloud and direct paths render from the same array, so the speed
+   * and ETA in the UI are computed one way for both.
+   */
+  const progressReporter = useCallback((itemId: string, total: number) => {
+    const speed = createSpeedometer();
+    return (loaded: number) => {
+      const { bytesPerSecond, secondsRemaining } = speed(loaded, total);
+      setTransfers((list) =>
+        list.map((t) => (t.itemId === itemId ? { ...t, loaded, total, bytesPerSecond, secondsRemaining } : t)),
+      );
+    };
+  }, []);
+
+  const failTransfers = useCallback((ids: string[], message: string) => {
+    setTransfers((list) => list.map((t) => (ids.includes(t.itemId) ? { ...t, error: message, bytesPerSecond: 0 } : t)));
+  }, []);
+
+  /**
+   * Sends over the local network instead of through R2.
+   *
+   * The two devices exchange one SDP each through the session document, then
+   * talk directly. Nothing is uploaded, so there is no item to create, no
+   * quota to reserve and nothing to clean up afterwards — which is also why a
+   * direct transfer leaves no trace in the shared list: the file only ever
+   * existed on these two devices.
+   */
+  const sendFilesDirect = useCallback(
+    (files: File[]) =>
+      run(async () => {
+        const current = credentialsRef.current;
+        if (!current) throw new Error('No active session.');
+        if (!isLanSupported()) throw new Error('This browser cannot make a direct connection.');
+
+        markActive();
+        closeLan();
+        lastDirectFiles.current = files;
+        setLanState('connecting');
+
+        const ids = files.map(() => `lan:${++lanCounter.current}`);
+        setTransfers((list) => [
+          ...list,
+          ...files.map((file, index) => ({
+            itemId: ids[index],
+            name: file.name,
+            loaded: 0,
+            total: file.size,
+            bytesPerSecond: 0,
+            secondsRemaining: 0,
+            direction: 'send' as const,
+            via: 'lan' as const,
+          })),
+        ]);
+
+        try {
+          const { pc, channel, sdp } = await createOffer();
+          lanPeer.current = pc;
+
+          // Resolved by the poll effect below when the peer's answer lands.
+          const answered = new Promise<string>((resolve, reject) => {
+            answerWaiter.current = resolve;
+            setTimeout(
+              () => reject(new LanUnavailableError('The other device did not answer.')),
+              LAN_ANSWER_TIMEOUT_MS,
+            );
+          });
+
+          await api.sendSignal(current.code, current.token, 'offer', sdp);
+          await pc.setRemoteDescription({ type: 'answer', sdp: await answered });
+          await whenOpen(channel);
+          setLanState('transferring');
+
+          const chunkSize = chunkSizeFor(pc);
+          for (const [index, file] of files.entries()) {
+            const controller = new AbortController();
+            lanAborts.current.set(ids[index], controller);
+            try {
+              await sendFile(channel, file, {
+                chunkSize,
+                signal: controller.signal,
+                onProgress: progressReporter(ids[index], file.size),
+              });
+              setTransfers((list) => list.filter((t) => t.itemId !== ids[index]));
+            } finally {
+              lanAborts.current.delete(ids[index]);
+            }
+          }
+
+          lastDirectFiles.current = [];
+          setLanState('idle');
+        } catch (err) {
+          setLanState('unavailable');
+          const message =
+            err instanceof LanUnavailableError
+              ? 'No direct connection — the devices may be on different networks.'
+              : err instanceof Error
+                ? err.message
+                : 'The direct transfer failed.';
+          failTransfers(ids, message);
+          throw new Error(message);
+        } finally {
+          answerWaiter.current = null;
+          closeLan();
+        }
+      }),
+    [closeLan, failTransfers, markActive, progressReporter, run],
+  );
+
+  /**
+   * Answers a handshake the peer posted, and receives whatever it sends.
+   *
+   * Nothing is accepted implicitly beyond the connection itself: the peer is
+   * already an authenticated participant in this session, so it could equally
+   * have sent the same file through R2.
+   */
+  const acceptDirect = useCallback(
+    async (offerSdp: string) => {
+      const current = credentialsRef.current;
+      if (!current) return;
+
+      closeLan();
+      setLanState('connecting');
+      try {
+        const { pc, channel, sdp } = await answerOffer(offerSdp);
+        lanPeer.current = pc;
+        await api.sendSignal(current.code, current.token, 'answer', sdp);
+        markActive();
+
+        const dc = await channel;
+        await whenOpen(dc);
+        setLanState('transferring');
+
+        let id = '';
+        let report: (loaded: number) => void = () => {};
+
+        lanTeardown.current = receiveFiles(dc, {
+          onBegin: (info) => {
+            id = `lan:${++lanCounter.current}`;
+            report = progressReporter(id, info.size);
+            setTransfers((list) => [
+              ...list,
+              {
+                itemId: id,
+                name: info.name,
+                loaded: 0,
+                total: info.size,
+                bytesPerSecond: 0,
+                secondsRemaining: 0,
+                direction: 'receive',
+                via: 'lan',
+              },
+            ]);
+          },
+          onProgress: (loaded) => report(loaded),
+          onFile: (file) => {
+            // Kept in the transfer rather than pushed into the item list: it
+            // has no server item, and inventing one would claim the file is
+            // in the session when it never left this device.
+            setTransfers((list) =>
+              list.map((t) =>
+                t.itemId === id
+                  ? {
+                      ...t,
+                      loaded: file.size,
+                      bytesPerSecond: 0,
+                      secondsRemaining: 0,
+                      received: { blob: file.blob, name: file.name },
+                    }
+                  : t,
+              ),
+            );
+          },
+          onError: (err) => failTransfers([id], err.message),
+        });
+
+        // The sender closes the connection when its batch is done.
+        dc.addEventListener('close', () => setLanState('idle'), { once: true });
+      } catch {
+        setLanState('unavailable');
+        closeLan();
+      }
+    },
+    [closeLan, failTransfers, markActive, progressReporter],
+  );
+
+  /**
+   * Picks handshakes out of the polled session.
+   *
+   * Only the peer's signals matter — our own offer comes back on every poll —
+   * and each is acted on once. A stale one is left alone: answering an offer
+   * from an attempt that has already been abandoned would post an answer
+   * nobody is waiting for.
+   */
+  useEffect(() => {
+    if (!session) return;
+    for (const item of session.items) {
+      if (item.kind !== 'signal' || !item.sdp || item.from === session.you) continue;
+      if (handledSignals.current.has(item.id)) continue;
+      if (Date.now() - item.createdAt > LAN_SIGNAL_MAX_AGE_MS) continue;
+      handledSignals.current.add(item.id);
+
+      if (item.role === 'answer') answerWaiter.current?.(item.sdp);
+      else if (item.role === 'offer') void acceptDirect(item.sdp);
+    }
+  }, [session, acceptDirect]);
+
+  /**
+   * Sends the files of a failed direct attempt through R2 instead. The point
+   * is that "different networks" costs one click rather than a second trip
+   * through the file picker.
+   */
+  const retryViaCloud = useCallback(() => {
+    const files = lastDirectFiles.current;
+    lastDirectFiles.current = [];
+    setLanState('idle');
+    setTransfers((list) => list.filter((t) => !(t.via === 'lan' && t.error)));
+    return files.length > 0 ? sendFiles(files) : Promise.resolve();
+  }, [sendFiles]);
+
+  /** Drops a finished direct receive once the user has saved it. */
+  const dismissTransfer = useCallback((itemId: string) => {
+    setTransfers((list) => list.filter((t) => t.itemId !== itemId));
+  }, []);
+
+  /**
    * Resume is the same path as a fresh send: sendFiles finds the stored
    * manifest by file identity and skips the parts already in R2. The File
    * comes from the paused-upload map when this tab is the one that paused it;
@@ -460,19 +764,35 @@ export function useShareSession(): ShareSession {
     [reset, run],
   );
 
-  /** Drops a stuck or unwanted upload, releasing its parts and its quota. */
+  /**
+   * Drops a stuck or unwanted transfer.
+   *
+   * A direct one is purely local — there is no item, no parts and no quota to
+   * release, so cancelling it is aborting the send loop and closing the
+   * connection. A cloud upload has all three, and the server has to be told.
+   */
   const cancelUpload = useCallback(
     (itemId: string) =>
       run(async () => {
         const current = credentialsRef.current;
         if (!current) return;
+
+        if (itemId.startsWith('lan:')) {
+          lanAborts.current.get(itemId)?.abort();
+          lanAborts.current.delete(itemId);
+          setTransfers((list) => list.filter((t) => t.itemId !== itemId));
+          closeLan();
+          setLanState('idle');
+          return;
+        }
+
         forgetUpload(itemId);
         pausedFiles.current.delete(itemId);
         pauseRequests.current.delete(itemId);
         setTransfers((list) => list.filter((t) => t.itemId !== itemId));
         setSession(await api.cancelItem(current.code, current.token, itemId));
       }),
-    [run],
+    [closeLan, run],
   );
 
   /**
@@ -516,6 +836,13 @@ export function useShareSession(): ShareSession {
     join,
     sendText,
     sendFiles,
+    sendFilesDirect,
+    lanState,
+    // Both devices have to be present for a direct transfer, so it is only
+    // offered once someone has actually joined.
+    canSendDirect: isLanSupported() && (session?.participants.length ?? 0) > 1,
+    retryViaCloud,
+    dismissTransfer,
     end,
     cancelUpload,
     pauseUpload,

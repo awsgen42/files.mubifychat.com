@@ -1,4 +1,5 @@
 import type { ParticipantRole, SessionStatus, SessionView, ShareItem } from '../shared/types';
+import { isUserItem } from '../shared/signal';
 import type { Config, Env } from './env';
 import { generateCode, hashToken, randomId, randomToken, timingSafeEqual } from './ids';
 
@@ -211,6 +212,40 @@ export async function authenticate(session: StoredSession, token: string | null)
   return null;
 }
 
+/**
+ * Drops every server-only field before an item goes over the wire.
+ *
+ * Leaking uploadId would hand the other participant everything needed to
+ * interfere with an upload in progress. Every item of every kind goes through
+ * here — there is deliberately only one of these, so a new kind cannot arrive
+ * with a strip that was updated in one place and not the other.
+ */
+export function stripInternal(item: StoredItem): ShareItem {
+  const { key: _key, uploadId: _uploadId, partSize: _partSize, ...rest } = item;
+  return rest;
+}
+
+/**
+ * Replaces this participant's previous signal of the same half, rather than
+ * appending.
+ *
+ * A retried handshake would otherwise pile SDPs into a document that is read
+ * out of KV on every poll by both devices. Each participant holds at most one
+ * offer and one answer, so the session carries at most four signal items
+ * however many times a direct transfer is attempted.
+ */
+export function putSignal(session: StoredSession, item: StoredItem): void {
+  session.items = session.items.filter(
+    (existing) => !(existing.kind === 'signal' && existing.from === item.from && existing.role === item.role),
+  );
+  session.items.push(item);
+}
+
+/** Items a person actually shared. Signals are plumbing and never counted. */
+export function userItemCount(session: StoredSession): number {
+  return session.items.filter(isUserItem).length;
+}
+
 export function toView(session: StoredSession, config: Config, you: ParticipantRole): SessionView {
   return {
     code: session.code,
@@ -221,9 +256,7 @@ export function toView(session: StoredSession, config: Config, you: ParticipantR
     version: session.version,
     you,
     participants: session.participants.map((p) => ({ role: p.role, joinedAt: p.joinedAt })),
-    // Strips every server-only field. Leaking uploadId would hand the other
-    // participant everything needed to interfere with an upload in progress.
-    items: session.items.map(({ key: _key, uploadId: _uploadId, partSize: _partSize, ...item }) => item),
+    items: session.items.map(stripInternal),
     limits: {
       maxFileBytes: config.maxFileBytes,
       maxSessionBytes: config.maxSessionBytes,

@@ -7,6 +7,7 @@ import type {
   UploadTarget,
 } from '../shared/types';
 import { formatLimit } from '../shared/limits';
+import { MAX_SDP_BYTES, MAX_SIGNAL_BODY_BYTES, parseSignal } from '../shared/signal';
 import { UPLOAD_PART_BYTES, isValidPartManifest, partCount, usesMultipart } from '../shared/upload';
 import { hasPresignCredentials, readConfig, type Config, type Env } from './env';
 import { DOWNLOAD_CONTENT_TYPE, contentDisposition, normalizeContentType, sanitizeFilename } from './files';
@@ -34,9 +35,12 @@ import {
   joinSession,
   loadSession,
   objectKey,
+  putSignal,
   saveSession,
+  stripInternal,
   toView,
   touch,
+  userItemCount,
   type StoredItem,
   type StoredSession,
 } from './session';
@@ -78,10 +82,11 @@ export async function handleApi(request: Request, env: Env, url: URL): Promise<R
   if (segments.length === 4 && segments[3] === 'end' && method === 'POST') return endRoute(ctx, code);
 
   if (segments[3] === 'items') {
-    // POST /api/sessions/:code/items/text|file
+    // POST /api/sessions/:code/items/text|file|signal
     if (segments.length === 5 && method === 'POST') {
       if (segments[4] === 'text') return sendTextRoute(ctx, code);
       if (segments[4] === 'file') return createFileItemRoute(ctx, code);
+      if (segments[4] === 'signal') return sendSignalRoute(ctx, code);
     }
     // DELETE /api/sessions/:code/items/:id
     if (segments.length === 5 && method === 'DELETE') return cancelItemRoute(ctx, code, segments[4]);
@@ -188,6 +193,53 @@ async function sendTextRoute(ctx: Ctx, code: string): Promise<Response> {
     downloads: 0,
   };
   session.items.push(item);
+  touch(session, ctx.now);
+  await saveSession(ctx.env, session, ctx.config, ctx.now);
+
+  return json(toView(session, ctx.config, role), 201);
+}
+
+/**
+ * One half of a WebRTC handshake, posted so the peer can read it on its next
+ * poll. This is the entire server-side surface of a direct transfer.
+ *
+ * Nothing here touches R2, the session byte budget or the per-IP daily quota,
+ * and that is the point: on this path the file never reaches us. The only cost
+ * is the item itself, which is why it is capped, deduplicated per participant,
+ * and counted against neither the item budget nor the byte budgets.
+ *
+ * The `sendItem` bucket is reused rather than given a limiter of its own. A
+ * handshake is two requests per attempt against a budget of 120 a minute, so
+ * it cannot crowd out real sends, and a new binding would cost a deploy-time
+ * dependency for something this rare.
+ */
+async function sendSignalRoute(ctx: Ctx, code: string): Promise<Response> {
+  await enforceRateLimit(ctx.env, clientIp(ctx.request), LIMITS.sendItem);
+  const { session, role } = await requireAuth(ctx, code);
+
+  // Before readJson, so an oversized body is refused rather than parsed. The
+  // SDP cap below only applies to a string that already exists in memory.
+  const declaredLength = Number(ctx.request.headers.get('content-length') ?? '0');
+  if (declaredLength > MAX_SIGNAL_BODY_BYTES) throw tooLarge('That handshake is too large.');
+
+  const parsed = parseSignal(await readJson<{ role?: unknown; sdp?: unknown }>(ctx.request));
+  if (!parsed.ok) {
+    if (parsed.reason === 'too_large') {
+      throw tooLarge(`A session description is limited to ${MAX_SDP_BYTES / 1024} KB.`);
+    }
+    throw badRequest('That is not a valid handshake.');
+  }
+
+  putSignal(session, {
+    id: randomId(8),
+    kind: 'signal',
+    state: 'ready',
+    from: role,
+    createdAt: ctx.now,
+    role: parsed.payload.role,
+    sdp: parsed.payload.sdp,
+    downloads: 0,
+  });
   touch(session, ctx.now);
   await saveSession(ctx.env, session, ctx.config, ctx.now);
 
@@ -516,17 +568,12 @@ async function assembleParts(ctx: Ctx, session: StoredSession, item: StoredItem)
 }
 
 /**
- * Drops every server-only field before an item goes over the wire. Must stay
- * in step with the identical strip in session.ts toView — this one covers the
- * create response, which does not go through it.
+ * Signal items are excluded: they are handshake plumbing, bounded at four by
+ * putSignal, and charging them against the user's budget would let two direct
+ * transfers eat into what can actually be shared.
  */
-function stripInternal(item: StoredItem) {
-  const { key: _key, uploadId: _uploadId, partSize: _partSize, ...rest } = item;
-  return rest;
-}
-
 function assertItemBudget(session: StoredSession, config: Config): void {
-  if (session.items.length >= config.maxItems) {
+  if (userItemCount(session) >= config.maxItems) {
     throw tooLarge(`A session can hold at most ${config.maxItems} items.`);
   }
 }

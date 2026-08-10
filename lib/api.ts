@@ -4,6 +4,7 @@ import type {
   CreateSessionResponse,
   JoinSessionResponse,
   SessionView,
+  SignalRole,
   UploadedPart,
 } from '@/shared/types';
 
@@ -53,6 +54,17 @@ export const api = {
 
   sendText: (code: string, token: string, text: string) =>
     request<SessionView>(`/api/sessions/${code}/items/text`, { method: 'POST', body: JSON.stringify({ text }) }, token),
+
+  /**
+   * One half of a WebRTC handshake. The peer reads it on its next poll, which
+   * is why a direct transfer needs no signalling service of its own.
+   */
+  sendSignal: (code: string, token: string, role: SignalRole, sdp: string) =>
+    request<SessionView>(
+      `/api/sessions/${code}/items/signal`,
+      { method: 'POST', body: JSON.stringify({ role, sdp }) },
+      token,
+    ),
 
   createFileItem: (code: string, token: string, file: File) =>
     request<CreateFileItemResponse>(

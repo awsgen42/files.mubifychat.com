@@ -81,6 +81,15 @@ export default function PrivacyPage() {
           Access to a session requires a token issued when you create or join it. We store only a
           hash of that token, not the token itself.
         </p>
+        <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+          <strong className="font-medium text-foreground">Files sent directly are not stored at all.</strong>{' '}
+          When both devices are on the same network you can send a file straight from one to the
+          other. Those bytes never reach us — there is no upload, no object, and nothing to delete
+          afterwards. What we do hold for that is the short handshake the two devices need in order
+          to find each other, which lives in the session record and goes when the session does. It
+          describes your device&rsquo;s addresses on its own local network, and the other device
+          sees it; that is what makes the direct connection possible.
+        </p>
       </section>
 
       <section className="glass card p-5 sm:p-6">
