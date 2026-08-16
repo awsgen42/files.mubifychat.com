@@ -39,6 +39,12 @@ export const TOOLS: readonly ToolEntry[] = [
     blurb:
       'Pull JPEG stills out of a video at the frame rate you choose. No upload, so no size limit and no copy left on a server.',
   },
+  {
+    path: '/tools/split-file',
+    name: 'File splitter & joiner',
+    blurb:
+      'Cut a file too big to email into .001/.002 parts, and join parts back. No size limit, and the parts work with cat, copy /b and 7-Zip.',
+  },
 ];
 
 export const TOOLS_INDEX_TITLE = 'Free file tools that run in your browser';
