@@ -61,36 +61,46 @@ describe.each(ALGORITHMS)('$name', ({ name, node, create, oneShot }) => {
     }
   });
 
-  it('agrees with Node at every padding boundary', () => {
-    // 55/56 is where the length no longer fits in the final block, 63/64/65
-    // straddle a whole block, and the rest are ordinary multi-block inputs.
-    for (const size of [0, 1, 54, 55, 56, 57, 63, 64, 65, 119, 127, 128, 129, 1000]) {
+  // Every one is its own case so a run lists them rather than reporting a
+  // count. The interesting ones are where the 8-byte length field lands:
+  // at 55 it still fits in the block holding the data, at 56 it no longer
+  // does and forces another block. That repeats at every multiple of 64, so
+  // 119/120 and 183/184 are the same boundary one and two blocks later —
+  // which is where an endianness mistake in the length word shows up while
+  // remaining invisible for most other sizes.
+  it.each([0, 1, 54, 55, 56, 57, 63, 64, 65, 118, 119, 120, 121, 127, 128, 129, 182, 183, 184, 185, 1000])(
+    'agrees with Node at %i bytes',
+    (size) => {
       const bytes = randomBytes(size);
-      expect(oneShot(bytes), `size ${size}`).toBe(reference(node, bytes));
+      expect(oneShot(bytes)).toBe(reference(node, bytes));
+    },
+  );
+
+  it('agrees with Node on 500 random inputs of random length', () => {
+    const lengths: number[] = [];
+    for (let run = 0; run < 500; run++) {
+      // Uniform over 0..4095, so roughly one in sixteen lands within eight
+      // bytes of a block boundary rather than avoiding them.
+      const size = Math.floor(Math.random() * 4096);
+      lengths.push(size);
+      const bytes = randomBytes(size);
+      expect(oneShot(bytes), `length ${size}`).toBe(reference(node, bytes));
     }
+    expect(lengths).toHaveLength(500);
+    expect(Math.max(...lengths)).toBeGreaterThan(3000);
   });
 
-  it('agrees with Node on 300 random inputs of random length', () => {
-    for (let run = 0; run < 300; run++) {
-      // Deliberately spanning the boundaries rather than avoiding them.
-      const bytes = randomBytes(Math.floor(Math.random() * 4096));
-      expect(oneShot(bytes), `length ${bytes.length}`).toBe(reference(node, bytes));
-    }
-  });
-
-  it('gives the same answer however the input is split', () => {
-    // The property the whole feature depends on: a file arrives in chunks
-    // whose size is a detail of the reader, and the digest must not care.
+  // The property the whole feature depends on: a file arrives in chunks whose
+  // size is a detail of the reader, and the digest must not care. Sizes below,
+  // at and above a block are all covered.
+  it.each([1, 7, 63, 64, 65, 100, 4096])('gives the same answer in chunks of %i', (chunkSize) => {
     const bytes = randomBytes(10_000);
     const expected = reference(node, bytes);
-
-    for (const chunkSize of [1, 7, 63, 64, 65, 100, 4096]) {
-      const hash = create();
-      for (let at = 0; at < bytes.length; at += chunkSize) {
-        hash.update(bytes.subarray(at, Math.min(at + chunkSize, bytes.length)));
-      }
-      expect(hash.digest(), `chunks of ${chunkSize}`).toBe(expected);
+    const hash = create();
+    for (let at = 0; at < bytes.length; at += chunkSize) {
+      hash.update(bytes.subarray(at, Math.min(at + chunkSize, bytes.length)));
     }
+    expect(hash.digest()).toBe(expected);
   });
 
   it('refuses to keep hashing after it has been finalised', () => {
