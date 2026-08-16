@@ -21,6 +21,12 @@ export const TOOLS: readonly ToolEntry[] = [
     blurb:
       'Work out the SHA-256, SHA-1 or MD5 of a file and check it against the one the publisher gave you. The file is read in your browser and never uploaded.',
   },
+  {
+    path: '/tools/qr',
+    name: 'QR code generator',
+    blurb:
+      'Make a QR code for text, a link or your Wi-Fi network, and download it as a PNG or an SVG. Nothing you type is sent anywhere.',
+  },
 ];
 
 export const TOOLS_INDEX_TITLE = 'Free file tools that run in your browser';
