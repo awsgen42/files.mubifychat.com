@@ -16,12 +16,35 @@ export function ContentPageShell({
   breadcrumbName,
   path,
   faq,
+  title,
+  subhead,
+  tool,
   children,
 }: {
   breadcrumbName: string;
   path: string;
   /** Omit on pages that have no FAQ; no FAQPage schema is emitted then. */
   faq?: readonly FaqEntry[];
+  /**
+   * The page heading. Supplying it opts into the tool-page ordering below;
+   * omitting it leaves the page to render its own <h1> among the children,
+   * which is what the prose pages do.
+   */
+  title?: string;
+  /** One line under the heading. Anything longer belongs below the tool. */
+  subhead?: string;
+  /**
+   * The tool itself, rendered directly after the heading and before any
+   * explanatory copy.
+   *
+   * This is the ordering rule for the whole /tools/ section, held here so that
+   * every tool gets it by passing a component in rather than by each page
+   * remembering to put its own sections in the right order. Someone arriving
+   * from a search for "sha256 file" wants the thing, not an introduction to
+   * it; the prose still exists, and is still in the document, just below the
+   * thing they came for.
+   */
+  tool?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -51,7 +74,22 @@ export function ContentPageShell({
         </ol>
       </nav>
 
-      <main className="mt-4 grid gap-4 sm:gap-5">{children}</main>
+      <main className="mt-4 grid gap-4 sm:gap-5">
+        {/* Kept deliberately short: on a 390px screen every line here is a
+            line between the visitor and the tool. The full explanation lives
+            below it, where it is still indexed and still read by anyone who
+            wants it. */}
+        {title && (
+          <section className="glass card p-5 sm:p-6">
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
+            {subhead && (
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground sm:text-base">{subhead}</p>
+            )}
+          </section>
+        )}
+        {tool}
+        {children}
+      </main>
 
       <SiteFooter />
 

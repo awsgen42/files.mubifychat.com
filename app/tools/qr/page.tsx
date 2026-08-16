@@ -31,10 +31,17 @@ export const metadata: Metadata = {
 
 export default function QrPage() {
   return (
-    <ContentPageShell breadcrumbName="QR code generator" path={PATH} faq={QR_FAQ}>
+    <ContentPageShell
+      breadcrumbName="QR code generator"
+      path={PATH}
+      faq={QR_FAQ}
+      title="QR code generator"
+      subhead="Text, links and Wi-Fi, encoded in your browser."
+      tool={<QrTool />}
+    >
+      {/* Deliberately headingless, so the outline stays h1 then the tool. */}
       <section className="glass card p-5 sm:p-6">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">QR code generator</h1>
-        <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
+        <p className="text-sm leading-relaxed text-muted-foreground sm:text-base">
           Turn text, a link, or your Wi-Fi details into a QR code, and download it as a PNG for
           screens or an SVG for print.
         </p>
@@ -45,8 +52,6 @@ export default function QrPage() {
           a server to draw the image, and there is no reason to.
         </p>
       </section>
-
-      <QrTool />
 
       <section className="glass card p-5 sm:p-6">
         <h2 className="text-lg font-semibold">What people use these for</h2>

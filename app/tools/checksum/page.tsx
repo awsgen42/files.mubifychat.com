@@ -31,12 +31,18 @@ export const metadata: Metadata = {
 
 export default function ChecksumPage() {
   return (
-    <ContentPageShell breadcrumbName="File hash & checksum" path={PATH} faq={CHECKSUM_FAQ}>
+    <ContentPageShell
+      breadcrumbName="File hash & checksum"
+      path={PATH}
+      faq={CHECKSUM_FAQ}
+      title="File hash & checksum generator"
+      subhead="SHA-256, SHA-1 and MD5, computed in your browser."
+      tool={<ChecksumTool />}
+    >
+      {/* No heading of its own: the outline is h1 then the tool's own h2s,
+          and introducing one here would insert a heading between them. */}
       <section className="glass card p-5 sm:p-6">
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-          File hash &amp; checksum generator
-        </h1>
-        <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
+        <p className="text-sm leading-relaxed text-muted-foreground sm:text-base">
           Work out the SHA-256, SHA-1 and MD5 of a file, and check it against the hash a publisher
           gave you. Useful for confirming a download arrived intact, or that two copies of a file
           really are the same.
@@ -51,8 +57,6 @@ export default function ChecksumPage() {
           no reason to, so this one does not.
         </p>
       </section>
-
-      <ChecksumTool />
 
       <section className="glass card p-5 sm:p-6">
         <h2 className="text-lg font-semibold">How to verify a download</h2>

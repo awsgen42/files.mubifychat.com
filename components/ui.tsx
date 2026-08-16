@@ -45,6 +45,11 @@ export function Button({ variant = 'primary', className, children, ...props }: B
       className={cx(
         'inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium',
         'transition-all duration-200 active:scale-[0.98]',
+        // Keyboard focus has to be visible, and focus-visible rather than
+        // focus so a pointer press does not leave a ring behind. The offset
+        // colour is the page background, so the ring reads on both themes.
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+        'focus-visible:ring-offset-2 focus-visible:ring-offset-background',
         VARIANTS[variant],
         DISABLED,
         className,

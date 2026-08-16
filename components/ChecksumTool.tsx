@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { formatBytes } from '@/lib/format';
 import { ALGORITHMS, compareDigest, hashFile, type AlgorithmId, type CompareResult } from '@/lib/hashes';
-import { AlertIcon, CheckIcon, CopyIcon, FileIcon, UploadIcon } from './Icons';
+import { AlertIcon, CheckIcon, CopyIcon, FileIcon, LockIcon, UploadIcon } from './Icons';
 import { Button, Card, Pill, cx } from './ui';
 
 const ALL: readonly AlgorithmId[] = ALGORITHMS.map((a) => a.id);
@@ -55,15 +55,22 @@ export function ChecksumTool() {
 
   return (
     <>
+      {/* The dropzone. One card, dashed at rest, that becomes the file's own
+          panel once there is a file — the same card, the same width, nothing
+          new appearing below it. */}
       <Card
         className={cx(
-          'transition-colors',
-          dragging && 'border-accent bg-accent-soft outline-2 outline-dashed outline-accent outline-offset-4',
+          'border-2 border-dashed transition-colors',
+          dragging && 'border-solid border-accent bg-accent-soft',
         )}
       >
         <div
+          // The whole card is a drop target; the button below is the control.
           onDragEnter={(event) => {
             event.preventDefault();
+            // Counted, not toggled. dragleave fires every time the pointer
+            // crosses into a child element, so a boolean flickers off as soon
+            // as the pointer reaches the button or the text inside the card.
             dragDepth.current += 1;
             setDragging(true);
           }}
@@ -79,35 +86,86 @@ export function ChecksumTool() {
             pick(event.dataTransfer.files);
           }}
         >
-          <h2 className="text-base font-semibold">Choose a file</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Drop it anywhere in this box, or pick it below. It is read on this device and never
-            uploaded.
-          </p>
+          <h2 className="text-base font-semibold">
+            {file ? 'Your file' : 'Choose a file to hash'}
+          </h2>
 
-          {/* Column below sm so the filename always has its own row. Wrapping
-              it beside the button meant the row was one line before a file was
-              chosen and two after, which moved everything below it. */}
-          <div className="mt-4 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-            <Button className="sm:shrink-0" onClick={() => inputRef.current?.click()}>
-              <UploadIcon />
-              Choose a file
-            </Button>
-            {/* Same height and same text size in both states. */}
-            <div className="flex min-h-10 min-w-0 flex-1 items-center gap-2 text-sm">
-              {file ? (
-                <>
+          {/* Fixed block: the two states are laid out to the same height, so
+              picking a file swaps the contents without moving anything. */}
+          <div className="mt-3 min-h-32 sm:min-h-28">
+            {file ? (
+              <>
+                <div className="flex min-h-10 min-w-0 items-center gap-2 text-sm">
                   <FileIcon width={16} height={16} className="shrink-0 text-muted-foreground" />
                   <span className="truncate font-medium">{file.name}</span>
                   <span className="shrink-0 text-muted-foreground tabular-nums">
                     {formatBytes(file.size)}
                   </span>
-                </>
-              ) : (
-                <span className="text-muted-foreground">No file chosen yet.</span>
-              )}
-            </div>
+                </div>
+
+                <div
+                  className="mt-3 h-2 overflow-hidden rounded-full border border-border-contrast bg-surface-muted"
+                  role="progressbar"
+                  aria-valuenow={Math.round(progress * 100)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label="Hashing progress"
+                >
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-accent to-accent/70 transition-[width] duration-200"
+                    style={{ width: `${Math.round(progress * 100)}%` }}
+                  />
+                </div>
+
+                <p className="mt-1.5 min-h-8 text-xs text-muted-foreground tabular-nums sm:min-h-5">
+                  {error ? (
+                    <span className="flex items-center gap-1.5 text-danger">
+                      <AlertIcon width={14} height={14} />
+                      {error}
+                    </span>
+                  ) : busy ? (
+                    `Reading… ${Math.round(progress * 100)}%`
+                  ) : (
+                    'Done — everything below was computed on this device.'
+                  )}
+                </p>
+
+                <Button
+                  variant="secondary"
+                  className="mt-2 w-full sm:w-auto"
+                  onClick={() => inputRef.current?.click()}
+                >
+                  <UploadIcon />
+                  Choose a different file
+                </Button>
+              </>
+            ) : (
+              <>
+                {/* A real button, not a clickable div: it is in the tab order
+                    on its own, announces itself as a button, and responds to
+                    Enter and Space without any of that being reimplemented. */}
+                <Button
+                  className="min-h-12 w-full text-base sm:w-auto sm:px-6"
+                  onClick={() => inputRef.current?.click()}
+                >
+                  <UploadIcon />
+                  Choose a file
+                </Button>
+                {/* Stated, not implied by a hover state — on a phone there is
+                    no hover, so an affordance that only appears on one does
+                    not exist. */}
+                <p className="mt-3 text-sm text-muted-foreground">…or drop a file anywhere in this box.</p>
+              </>
+            )}
           </div>
+
+          {/* The differentiator, and the reason someone would use this rather
+              than the first result that uploads their file. It stays on screen
+              in both states. */}
+          <p className="mt-1 flex items-start gap-2 text-xs text-muted-foreground">
+            <LockIcon width={14} height={14} className="mt-0.5 shrink-0" />
+            <span>Your file never leaves this browser. Nothing is uploaded.</span>
+          </p>
 
           <input
             ref={inputRef}
@@ -118,39 +176,6 @@ export function ChecksumTool() {
               event.target.value = '';
             }}
           />
-
-          {/* Always in the layout, only visibly filled while working — a bar
-              that appears on pick would shove the results down the page. */}
-          <div
-            className="mt-4 h-2 overflow-hidden rounded-full border border-border-contrast bg-surface-muted"
-            role="progressbar"
-            aria-valuenow={Math.round(progress * 100)}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label="Hashing progress"
-          >
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-accent to-accent/70 transition-[width] duration-200"
-              style={{ width: busy || digests ? `${Math.round(progress * 100)}%` : '0%' }}
-            />
-          </div>
-          {/* Two lines of room below sm, one above: the done message wraps on
-              a phone, and reserving a single line let it push the page down by
-              the second one. */}
-          <p className="mt-1.5 min-h-8 text-xs text-muted-foreground tabular-nums sm:min-h-5">
-            {error ? (
-              <span className="flex items-center gap-1.5 text-danger">
-                <AlertIcon width={14} height={14} />
-                {error}
-              </span>
-            ) : busy ? (
-              `Reading… ${Math.round(progress * 100)}%`
-            ) : digests ? (
-              'Done — everything below was computed on this device.'
-            ) : (
-              ''
-            )}
-          </p>
         </div>
       </Card>
 
@@ -251,10 +276,14 @@ function DigestRow({
     }
   };
 
+  // Exactly <dt> and <dd> as the children of this group: a <dl> may only
+  // contain dt/dd pairs, optionally wrapped one level in a <div>. Anything
+  // else in the wrapper — a nested layout div, a stray <p> — breaks the
+  // association between term and description for a screen reader.
   return (
     <div>
-      <div className="flex items-baseline justify-between gap-3">
-        <dt className="text-sm font-medium">{label}</dt>
+      <dt className="flex items-baseline justify-between gap-3">
+        <span className="text-sm font-medium">{label}</span>
         <Button
           variant="ghost"
           className="shrink-0 px-2 py-1 text-xs"
@@ -265,26 +294,22 @@ function DigestRow({
           {copied ? <CheckIcon width={14} height={14} /> : <CopyIcon width={14} height={14} />}
           {copied ? 'Copied' : 'Copy'}
         </Button>
-      </div>
-      {/* break-all rather than truncate: a checksum you cannot see all of is
-          not much use.
+      </dt>
+      <dd className="mt-1.5">
+        {/* break-all rather than truncate: a checksum you cannot see all of is
+            not much use.
 
-          The placeholder is a run of dots exactly as long as the digest it is
-          standing in for, in the same monospace face, so it wraps to the same
-          number of lines at every width. A single em-dash was one line where a
-          SHA-256 is two on a phone, and the box growing by a line when the
-          hash arrived pushed the rest of the page down. Reserving the space
-          properly is the fix; measuring a height would only be right at the
-          width it was measured at. */}
-      <dd
-        className={cx(
-          'glass-input mt-1.5 break-all p-3 font-mono text-[13px] leading-relaxed',
-          !value && 'select-none text-muted-foreground/30',
-        )}
-      >
-        {value ?? '·'.repeat(hexLength)}
+            Empty, the box holds a digest-length string with visibility:hidden.
+            It occupies exactly the space the real digest will, wrapping to the
+            same number of lines at every width, while being neither drawn nor
+            announced — where a faint placeholder was both, and failed contrast
+            at 1.5:1 for text nobody was meant to read. Measuring a height
+            instead would only be right at the width it was measured at. */}
+        <div className="glass-input break-all p-3 font-mono text-[13px] leading-relaxed">
+          {value ?? <span className="invisible">{'0'.repeat(hexLength)}</span>}
+        </div>
+        <p className="mt-1.5 text-xs text-muted-foreground">{note}</p>
       </dd>
-      <p className="mt-1.5 text-xs text-muted-foreground">{note}</p>
     </div>
   );
 }
