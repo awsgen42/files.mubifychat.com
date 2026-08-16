@@ -1,30 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ContentPageCta, ContentPageShell } from '@/components/ContentPageShell';
-import { OG_IMAGE, SITE_URL } from '@/lib/seo';
+import { pageMetadata } from '@/lib/seo';
 import { TOOLS, TOOLS_INDEX_DESCRIPTION, TOOLS_INDEX_TITLE } from '@/lib/tools';
 
 const PATH = '/tools';
 
-export const metadata: Metadata = {
-  title: TOOLS_INDEX_TITLE,
-  description: TOOLS_INDEX_DESCRIPTION,
-  alternates: { canonical: PATH },
-  openGraph: {
-    type: 'website',
-    url: `${SITE_URL}${PATH}`,
-    siteName: 'Mubifiles',
-    title: TOOLS_INDEX_TITLE,
-    description: TOOLS_INDEX_DESCRIPTION,
-    images: [OG_IMAGE],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: TOOLS_INDEX_TITLE,
-    description: TOOLS_INDEX_DESCRIPTION,
-    images: [OG_IMAGE.url],
-  },
-};
+export const metadata: Metadata = pageMetadata({ path: PATH, title: TOOLS_INDEX_TITLE, description: TOOLS_INDEX_DESCRIPTION, type: 'website' });
 
 /* No FAQ on this page, so no FAQPage schema is emitted — the shell only
    attaches one when it is given entries, which is what keeps the schema

@@ -2,32 +2,14 @@ import type { Metadata } from 'next';
 import { ChecksumTool } from '@/components/ChecksumTool';
 import { ContentPageCta, ContentPageFaq, ContentPageShell } from '@/components/ContentPageShell';
 import { CHECKSUM_FAQ, LIMITS_NOTE, VERIFY_STEPS } from '@/lib/checksum';
-import { OG_IMAGE, SITE_URL } from '@/lib/seo';
+import { pageMetadata } from '@/lib/seo';
 
 const PATH = '/tools/checksum';
 const TITLE = 'File Hash & Checksum Generator — SHA-256, SHA-1, MD5 in your browser';
 const DESCRIPTION =
   'Generate the SHA-256, SHA-1 or MD5 checksum of any file and compare it against a published hash. Runs entirely in your browser — the file is never uploaded.';
 
-export const metadata: Metadata = {
-  title: TITLE,
-  description: DESCRIPTION,
-  alternates: { canonical: PATH },
-  openGraph: {
-    type: 'article',
-    url: `${SITE_URL}${PATH}`,
-    siteName: 'Mubifiles',
-    title: TITLE,
-    description: DESCRIPTION,
-    images: [OG_IMAGE],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: TITLE,
-    description: DESCRIPTION,
-    images: [OG_IMAGE.url],
-  },
-};
+export const metadata: Metadata = pageMetadata({ path: PATH, title: TITLE, description: DESCRIPTION });
 
 export default function ChecksumPage() {
   return (

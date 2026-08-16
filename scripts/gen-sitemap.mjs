@@ -47,6 +47,7 @@ const ROUTES = [
   { url: '/tools/', changefreq: 'monthly', priority: '0.7' },
   { url: '/tools/checksum/', changefreq: 'monthly', priority: '0.7' },
   { url: '/tools/qr/', changefreq: 'monthly', priority: '0.7' },
+  { url: '/tools/image-compress/', changefreq: 'monthly', priority: '0.7' },
   { url: '/report/', changefreq: 'yearly', priority: '0.3' },
   { url: '/privacy/', changefreq: 'yearly', priority: '0.3' },
   { url: '/terms/', changefreq: 'yearly', priority: '0.3' },

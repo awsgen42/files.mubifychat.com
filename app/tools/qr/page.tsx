@@ -2,32 +2,14 @@ import type { Metadata } from 'next';
 import { ContentPageCta, ContentPageFaq, ContentPageShell } from '@/components/ContentPageShell';
 import { QrTool } from '@/components/QrTool';
 import { QR_FAQ, SCANNING_NOTE, USES } from '@/lib/qr';
-import { OG_IMAGE, SITE_URL } from '@/lib/seo';
+import { pageMetadata } from '@/lib/seo';
 
 const PATH = '/tools/qr';
 const TITLE = 'QR Code Generator — text, links and Wi-Fi, in your browser';
 const DESCRIPTION =
   'Make a QR code for text, a link or your Wi-Fi network, and download it as PNG or SVG. Runs entirely in your browser — nothing you type is sent anywhere.';
 
-export const metadata: Metadata = {
-  title: TITLE,
-  description: DESCRIPTION,
-  alternates: { canonical: PATH },
-  openGraph: {
-    type: 'article',
-    url: `${SITE_URL}${PATH}`,
-    siteName: 'Mubifiles',
-    title: TITLE,
-    description: DESCRIPTION,
-    images: [OG_IMAGE],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: TITLE,
-    description: DESCRIPTION,
-    images: [OG_IMAGE.url],
-  },
-};
+export const metadata: Metadata = pageMetadata({ path: PATH, title: TITLE, description: DESCRIPTION });
 
 export default function QrPage() {
   return (

@@ -15,14 +15,16 @@
     "skipLibCheck": true,
     "esModuleInterop": true
   },
+  "//": "Tests are listed one by one rather than globbed. `test/**/*.ts` pulled every client test into the Worker project, so each new browser-only module — reachability, theme, images — broke this build with a missing DOM type and had to be added to a growing exclude list. Naming what the Worker project actually covers is the same information stated the way round that does not need maintaining.",
   "include": [
     "worker/**/*.ts",
     "shared/**/*.ts",
-    "test/**/*.ts",
-    "lib/format.ts"
-  ],
-  "exclude": [
-    "test/reachability.test.ts",
-    "test/theme.test.ts"
+    "lib/format.ts",
+    "test/worker.test.ts",
+    "test/cors.test.ts",
+    "test/limits.test.ts",
+    "test/upload.test.ts",
+    "test/signal.test.ts",
+    "test/format.test.ts"
   ]
 }

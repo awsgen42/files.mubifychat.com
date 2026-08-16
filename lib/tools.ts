@@ -27,6 +27,12 @@ export const TOOLS: readonly ToolEntry[] = [
     blurb:
       'Make a QR code for text, a link or your Wi-Fi network, and download it as a PNG or an SVG. Nothing you type is sent anywhere.',
   },
+  {
+    path: '/tools/image-compress',
+    name: 'Image compressor & resizer',
+    blurb:
+      'Shrink and resize photos, convert between JPEG, PNG and WebP, and take the set as a ZIP. Every image is processed on your own device.',
+  },
 ];
 
 export const TOOLS_INDEX_TITLE = 'Free file tools that run in your browser';

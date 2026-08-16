@@ -1,5 +1,7 @@
 /** Shared site-level SEO constants, so URLs are never duplicated per page. */
 
+import type { Metadata } from 'next';
+
 export const SITE_URL = 'https://www.mubifiles.com';
 
 /**
@@ -12,6 +14,50 @@ export const OG_IMAGE = {
   height: 630,
   alt: 'Mubifiles — send files and text between your devices',
 } as const;
+
+/**
+ * A page's metadata, from the three things that actually differ.
+ *
+ * Written after three tool pages had been built by hand and compared: `path`,
+ * `title` and `description` varied, and every other line was identical or
+ * derived from those three. `openGraph.type` is the one near-constant —
+ * 'article' on a tool or an explainer, 'website' on an index — so it is a
+ * default rather than a fourth thing to remember.
+ *
+ * `canonical` takes the path without a trailing slash; `trailingSlash: true`
+ * means Next emits the slashed form, which is what actually serves a 200.
+ */
+export function pageMetadata({
+  path,
+  title,
+  description,
+  type = 'article',
+}: {
+  path: string;
+  title: string;
+  description: string;
+  type?: 'article' | 'website';
+}): Metadata {
+  return {
+    title,
+    description,
+    alternates: { canonical: path },
+    openGraph: {
+      type,
+      url: `${SITE_URL}${path}`,
+      siteName: 'Mubifiles',
+      title,
+      description,
+      images: [OG_IMAGE],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [OG_IMAGE.url],
+    },
+  };
+}
 
 /**
  * Home → current page. Rendered on subpages only.
