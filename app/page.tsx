@@ -4,13 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { CodePanel } from '@/components/CodePanel';
 import { Composer } from '@/components/Composer';
 import { AppColumns } from '@/components/AppColumns';
-import { AlertIcon, LogoMark, PowerIcon, UploadIcon } from '@/components/Icons';
+import { AlertIcon, PowerIcon, UploadIcon } from '@/components/Icons';
 import { ItemList } from '@/components/ItemList';
 import { LandingContent } from '@/components/LandingContent';
 import { QrCode } from '@/components/QrCode';
 import { SiteFooter } from '@/components/SiteFooter';
+import { SiteHeader } from '@/components/SiteHeader';
 import { StartScreen } from '@/components/StartScreen';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { TransferList } from '@/components/TransferList';
 import { Button } from '@/components/ui';
 import { useReachability } from '@/lib/reachability';
@@ -51,20 +51,12 @@ export default function Home() {
     // partway down. Prose is kept readable by capping paragraphs inside the
     // cards, not by narrowing the cards.
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-6 sm:px-6 sm:py-10 lg:max-w-5xl">
-      <header className="flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <LogoMark />
-          <div>
-            {/* Not an <h1>: the landing section below owns the page heading. */}
-            <p className="text-lg font-semibold leading-tight">Mubifiles</p>
-            <p className="text-xs text-muted-foreground">Phone to PC in seconds</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1">
-          {/* aria-label because the text label is hidden below sm: without it
-              the button is icon-only and has no accessible name on mobile. */}
-          {share.session && (
+      <SiteHeader
+        path="/"
+        actions={
+          // aria-label because the text label is hidden below sm: without it
+          // the button is icon-only and has no accessible name on mobile.
+          share.session ? (
             <Button
               variant="danger"
               onClick={() => void share.end()}
@@ -74,10 +66,9 @@ export default function Home() {
               <PowerIcon />
               <span className="hidden sm:inline">End session</span>
             </Button>
-          )}
-          <ThemeToggle />
-        </div>
-      </header>
+          ) : null
+        }
+      />
 
       {/* Ahead of the failure rather than after it: without this the code
           field and the upload button stay live while offline, and the only

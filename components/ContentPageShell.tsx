@@ -1,8 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { LogoMark } from '@/components/Icons';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { SiteFooter } from '@/components/SiteFooter';
+import { SiteHeader } from '@/components/SiteHeader';
 import { buildFaqSchema, type FaqEntry } from '@/lib/faq';
 import { buildBreadcrumbSchema } from '@/lib/seo';
 
@@ -49,16 +48,7 @@ export function ContentPageShell({
 }) {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-6 sm:px-6 sm:py-10">
-      <header className="flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2.5">
-          <LogoMark />
-          <div>
-            <p className="text-lg font-semibold leading-tight">Mubifiles</p>
-            <p className="text-xs text-muted-foreground">Phone to PC in seconds</p>
-          </div>
-        </Link>
-        <ThemeToggle />
-      </header>
+      <SiteHeader path={path} />
 
       <nav aria-label="Breadcrumb" className="mt-6 text-xs text-muted-foreground">
         <ol className="flex items-center gap-1.5">

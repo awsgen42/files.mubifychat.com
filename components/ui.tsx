@@ -1,39 +1,9 @@
 'use client';
 
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { BUTTON_BASE, BUTTON_DISABLED, VARIANTS, cx, type Variant } from '@/lib/styles';
 
-export function cx(...classes: (string | false | null | undefined)[]): string {
-  return classes.filter(Boolean).join(' ');
-}
-
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
-
-const VARIANTS: Record<Variant, string> = {
-  // Kept solid rather than translucent: this is the one element that must stay
-  // legible against whatever colour drifts behind it.
-  primary:
-    'bg-accent text-accent-foreground shadow-lg shadow-accent/25 hover:shadow-accent/40 hover:brightness-110',
-  secondary: 'glass text-foreground hover:bg-surface-strong',
-  ghost: 'text-muted-foreground hover:text-foreground hover:bg-surface-muted',
-  danger: 'glass text-danger border-danger/30 hover:bg-danger/10',
-};
-
-/**
- * One disabled treatment for every variant, applied after them so it wins.
- *
- * Dimming each variant in place did not work: the same opacity over a solid
- * accent and over a translucent glass fill lands in completely different
- * places, so a disabled primary still read as a live purple button next to a
- * disabled secondary that had all but vanished. Two controls in the same state
- * looked like two different states — visible whenever the app goes offline and
- * disables Start and Connect together.
- *
- * So a disabled button stops being its variant. It drops the fill, the accent
- * and the shadow and becomes one neutral, recessed shape, whatever it was.
- */
-const DISABLED =
-  'disabled:cursor-not-allowed disabled:active:scale-100 disabled:bg-surface-muted ' +
-  'disabled:text-muted-foreground disabled:shadow-none disabled:opacity-60';
+export { buttonClasses, cx } from '@/lib/styles';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
@@ -41,21 +11,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 export function Button({ variant = 'primary', className, children, ...props }: ButtonProps) {
   return (
-    <button
-      className={cx(
-        'inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium',
-        'transition-all duration-200 active:scale-[0.98]',
-        // Keyboard focus has to be visible, and focus-visible rather than
-        // focus so a pointer press does not leave a ring behind. The offset
-        // colour is the page background, so the ring reads on both themes.
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-        'focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-        VARIANTS[variant],
-        DISABLED,
-        className,
-      )}
-      {...props}
-    >
+    <button className={cx(BUTTON_BASE, VARIANTS[variant], BUTTON_DISABLED, className)} {...props}>
       {children}
     </button>
   );
