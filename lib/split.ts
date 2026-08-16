@@ -14,6 +14,7 @@
  * website to get their own data back.
  */
 
+import { MANIFEST_SUFFIX, buildManifest, manifestName } from './manifest';
 import { Sha256 } from './sha256';
 
 /** Read granularity when copying bytes through a stream. */
@@ -82,6 +83,82 @@ export function outputNameFor(names: readonly string[]): string {
   return 'joined-file';
 }
 
+/* ------------------------------------------------------------------ */
+/* Raw byte split, or a structured archive?                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The question behind "how do I open a .001 file", which no article answers
+ * because answering it requires looking at the bytes.
+ *
+ * The rule usually proposed — an archive signature at the start of part 001
+ * means the parts are a structured archive and must not be joined raw — is
+ * wrong, and wrong in the most common direction. Splitting a .zip is the
+ * ordinary case for this tool, and the first part of a raw split of a .zip
+ * begins with `PK\x03\x04` because the *file* begins with it. Refusing that
+ * would refuse the join that works.
+ *
+ * What actually separates the two is whether the signature repeats. A raw byte
+ * split puts the header in part 001 and nowhere else; every subsequent part
+ * starts mid-stream. A genuine multi-volume archive — RAR's .partN.rar, ZIP's
+ * .z01 — is a sequence of independently framed volumes, so *every* volume
+ * carries a header, and concatenating them produces garbage no matter what
+ * order they are in. So the test is on the first two parts together.
+ *
+ * Checked against both real cases in the tests, including the one that matters:
+ * a raw split of a ZIP is reported as joinable.
+ */
+export type SplitKind =
+  | { kind: 'raw'; container: string | null }
+  | { kind: 'structured'; container: string };
+
+interface Signature {
+  name: string;
+  bytes: number[];
+}
+
+/**
+ * `PK\x07\x08` is the spanning marker a multi-volume ZIP writes at the very
+ * front, so it is listed separately from the ordinary local file header.
+ */
+const SIGNATURES: Signature[] = [
+  { name: 'ZIP', bytes: [0x50, 0x4b, 0x03, 0x04] },
+  { name: 'ZIP', bytes: [0x50, 0x4b, 0x05, 0x06] },
+  { name: 'ZIP (spanned)', bytes: [0x50, 0x4b, 0x07, 0x08] },
+  { name: 'RAR', bytes: [0x52, 0x61, 0x72, 0x21, 0x1a, 0x07] },
+  { name: '7-Zip', bytes: [0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c] },
+  { name: 'gzip', bytes: [0x1f, 0x8b] },
+];
+
+function signatureOf(head: Uint8Array): string | null {
+  for (const sig of SIGNATURES) {
+    if (sig.bytes.every((byte, i) => head[i] === byte)) return sig.name;
+  }
+  return null;
+}
+
+/**
+ * Given the first bytes of the first two parts, says whether joining raw is
+ * the right thing to do. With only one part there is nothing to compare
+ * against, so it reports raw: one part joined raw is a copy, which is harmless.
+ */
+export function classifyParts(firstHead: Uint8Array, secondHead?: Uint8Array): SplitKind {
+  const first = signatureOf(firstHead);
+  if (!first) return { kind: 'raw', container: null };
+  if (!secondHead || secondHead.length === 0) return { kind: 'raw', container: first };
+  const second = signatureOf(secondHead);
+  return second === first ? { kind: 'structured', container: first } : { kind: 'raw', container: first };
+}
+
+/** Reads enough of a part to look for a signature. */
+export async function headOf(file: File): Promise<Uint8Array> {
+  return new Uint8Array(await file.slice(0, 8).arrayBuffer());
+}
+
+export function structuredMessage(container: string): string {
+  return `These look like ${container} volumes, not a raw split: every part starts with a ${container} header, which only happens when each one is its own archive. Joining them end to end would produce a broken file. Open the first part with ${container === 'RAR' ? '7-Zip, WinRAR or The Unarchiver' : '7-Zip or The Unarchiver'} instead — it finds the other volumes itself.`;
+}
+
 export type OrderProblem =
   | { kind: 'unnamed'; names: string[] }
   | { kind: 'mixed'; bases: string[] }
@@ -148,6 +225,40 @@ export function orderParts(names: readonly string[]): Ordering {
   if (missing.length > 0) return { ok: false, ordered, problem: { kind: 'gap', missing } };
 
   return { ok: true, ordered };
+}
+
+/**
+ * Splits a dropped selection into the parts, the manifest, and everything else.
+ *
+ * This runs before ordering, and it is the difference between working and not
+ * for the commonest way anyone will use the join side: selecting a folder, or
+ * dragging its whole contents in. That selection contains the manifest this
+ * tool wrote, and on a Mac it contains .DS_Store whether anyone wanted it or
+ * not. Sorting those into the sequence corrupts the output; treating them as an
+ * error makes the tool refuse a selection that is perfectly fine.
+ *
+ * The rule is by shape rather than by a list of known nuisances: a part is a
+ * name ending in a run of digits, and anything else is set aside and named in
+ * the UI so nothing is silently dropped. CHECKSUMS.txt, Thumbs.db and a
+ * README all fall out of that without being enumerated.
+ */
+export function partitionDropped<T extends { name: string }>(
+  files: readonly T[],
+): { parts: T[]; manifest: T | null; setAside: T[] } {
+  const parts: T[] = [];
+  const setAside: T[] = [];
+  let manifest: T | null = null;
+
+  for (const file of files) {
+    if (file.name.toLowerCase().endsWith(MANIFEST_SUFFIX)) {
+      // First one wins; a second is set aside rather than silently preferred.
+      if (manifest === null) manifest = file;
+      else setAside.push(file);
+    } else if (parsePartName(file.name)) parts.push(file);
+    else setAside.push(file);
+  }
+
+  return { parts, manifest, setAside };
 }
 
 /** The message shown for a refused set, naming what is wrong. */
@@ -226,6 +337,8 @@ export interface SplitOptions {
   partBytes: number;
   /** Hashing the original costs a full read; only done when asked for. */
   withChecksum: boolean;
+  /** Write the sidecar .join.txt alongside the parts. */
+  withManifest: boolean;
   onProgress?: (bytesDone: number, total: number) => void;
   signal?: AbortSignal;
 }
@@ -233,6 +346,7 @@ export interface SplitOptions {
 export interface SplitResult {
   parts: { name: string; bytes: number }[];
   sha256?: string;
+  manifest?: string;
 }
 
 /**
@@ -273,7 +387,21 @@ export async function splitFile(
     parts.push({ name, bytes: blob.size });
   }
 
-  return { parts, ...(hash ? { sha256: hash.digest() } : {}) };
+  const sha256 = hash ? hash.digest() : undefined;
+
+  // Written last, and as a separate file: the parts are finished and correct
+  // before this exists, and they stay correct if it never does.
+  let manifest: string | undefined;
+  if (options.withManifest) {
+    const name = manifestName(file.name);
+    const target = await open(name);
+    const text = buildManifest({ original: file.name, bytes: file.size, sha256: sha256 ?? null, parts });
+    await target.write(new TextEncoder().encode(text).buffer as ArrayBuffer);
+    await target.close();
+    manifest = name;
+  }
+
+  return { parts, ...(sha256 ? { sha256 } : {}), ...(manifest ? { manifest } : {}) };
 }
 
 export interface JoinOptions {
@@ -317,6 +445,32 @@ export async function joinParts(
 
   await target.close();
   return { bytes: total, ...(hash ? { sha256: hash.digest() } : {}) };
+}
+
+/**
+ * The digest of the parts joined, without joining them.
+ *
+ * For the browsers that cannot stream to disk, where the output is handed over
+ * as one download and there is nothing to read back afterwards. The same
+ * windows and the same hash as joinParts, so the answer is the digest of the
+ * file they are about to receive.
+ */
+export async function hashParts(parts: readonly File[], options: JoinOptions = { withChecksum: true }): Promise<string> {
+  const total = parts.reduce((sum, part) => sum + part.size, 0);
+  const hash = new Sha256();
+  let done = 0;
+
+  for (const part of parts) {
+    for (let offset = 0; offset < part.size; offset += CHUNK_BYTES) {
+      if (options.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      const slice = part.slice(offset, Math.min(offset + CHUNK_BYTES, part.size));
+      hash.update(new Uint8Array(await slice.arrayBuffer()));
+      done += slice.size;
+      options.onProgress?.(done, total);
+    }
+  }
+
+  return hash.digest();
 }
 
 export { writeBlob };

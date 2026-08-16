@@ -41,9 +41,9 @@ export const TOOLS: readonly ToolEntry[] = [
   },
   {
     path: '/tools/split-file',
-    name: 'File splitter & joiner',
+    name: 'Join .001 files, and split files',
     blurb:
-      'Cut a file too big to email into .001/.002 parts, and join parts back. No size limit, and the parts work with cat, copy /b and 7-Zip.',
+      'Put .001/.002 parts back into the original file, with nothing to install and no size limit — and cut a file into parts the same way.',
   },
 ];
 
