@@ -11,6 +11,7 @@ export function SiteFooter() {
       <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs text-muted-foreground">
         <span>Files are deleted automatically when the session closes.</span>
         {[
+          { href: '/tools', label: 'Tools' },
           { href: '/privacy', label: 'Privacy' },
           { href: '/terms', label: 'Terms' },
           { href: '/report', label: 'Report abuse' },

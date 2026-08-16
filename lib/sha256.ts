@@ -3,15 +3,18 @@
  *
  * WebCrypto is the obvious choice and cannot be used here: `crypto.subtle
  * .digest` takes the whole input at once, so hashing a 1 GB file would mean
- * holding a 1 GB ArrayBuffer — the exact thing the chunked transfer exists to
- * avoid. There is no streaming digest in the platform.
+ * holding a 1 GB ArrayBuffer — the exact thing the chunked transfer and the
+ * checksum tool exist to avoid. There is no streaming digest in the platform.
  *
- * So the algorithm is implemented directly, fed one chunk at a time by both
- * ends of a direct transfer. Memory is a 64-byte block buffer regardless of
- * file size. test/sha256.test.ts checks it against the published vectors and
- * against crypto.subtle over random input, which is what makes trusting a
- * hand-rolled hash reasonable.
+ * So the algorithm is implemented directly, fed one chunk at a time. Memory is
+ * a 64-byte block buffer regardless of file size. test/sha256.test.ts checks
+ * it against the published vectors and against crypto.subtle over random
+ * input, which is what makes trusting a hand-rolled hash reasonable.
  */
+
+import { BlockHash, lengthBitWords, rotr } from './blockhash';
+
+export { lengthBitWords };
 
 // prettier-ignore
 const K = new Uint32Array([
@@ -25,74 +28,14 @@ const K = new Uint32Array([
   0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 ]);
 
-const rotr = (value: number, bits: number): number => (value >>> bits) | (value << (32 - bits));
-
-export class Sha256 {
-  private readonly state = new Uint32Array([
+export class Sha256 extends BlockHash {
+  protected readonly littleEndian = false;
+  protected readonly state = new Uint32Array([
     0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
   ]);
-  /** One block, holding whatever the last chunk left short of 64 bytes. */
-  private readonly block = new Uint8Array(64);
-  private readonly view = new DataView(this.block.buffer);
   private readonly schedule = new Uint32Array(64);
-  private blockLength = 0;
-  private totalBytes = 0;
-  private finished = false;
 
-  update(chunk: Uint8Array): this {
-    if (this.finished) throw new Error('This digest has already been finalised.');
-    this.totalBytes += chunk.length;
-
-    let offset = 0;
-    // Top up a partial block from a previous chunk first.
-    if (this.blockLength > 0) {
-      const take = Math.min(64 - this.blockLength, chunk.length);
-      this.block.set(chunk.subarray(0, take), this.blockLength);
-      this.blockLength += take;
-      offset = take;
-      if (this.blockLength < 64) return this;
-      this.compress(this.view, 0);
-      this.blockLength = 0;
-    }
-
-    // Then whole blocks straight out of the chunk, without copying.
-    const view = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength);
-    while (offset + 64 <= chunk.length) {
-      this.compress(view, offset);
-      offset += 64;
-    }
-
-    if (offset < chunk.length) {
-      this.block.set(chunk.subarray(offset), 0);
-      this.blockLength = chunk.length - offset;
-    }
-    return this;
-  }
-
-  /** Lowercase hex, the form the manifest carries and the tests compare. */
-  digest(): string {
-    if (!this.finished) {
-      this.finished = true;
-      // 0x80, then zeros, then the length in bits as a 64-bit big-endian.
-      const bits = this.totalBytes * 8;
-      this.block.fill(0, this.blockLength);
-      this.block[this.blockLength] = 0x80;
-      if (this.blockLength >= 56) {
-        this.compress(this.view, 0);
-        this.block.fill(0);
-      }
-      const [high, low] = lengthBitWords(this.totalBytes);
-      this.view.setUint32(56, high);
-      this.view.setUint32(60, low);
-      this.compress(this.view, 0);
-    }
-
-    let hex = '';
-    for (const word of this.state) hex += word.toString(16).padStart(8, '0');
-    return hex;
-  }
-
-  private compress(view: DataView, offset: number): void {
+  protected compress(view: DataView, offset: number): void {
     const w = this.schedule;
     for (let i = 0; i < 16; i++) w[i] = view.getUint32(offset + i * 4);
     for (let i = 16; i < 64; i++) {
@@ -131,23 +74,6 @@ export class Sha256 {
     s[6] = (s[6] + g) | 0;
     s[7] = (s[7] + h) | 0;
   }
-}
-
-/**
- * The trailing length field, as two big-endian 32-bit words.
- *
- * Split out because it is the one part of the algorithm that only misbehaves
- * above 512 MB — where the bit count stops fitting in the low word — and
- * proving that end to end would mean hashing half a gigabyte on every deploy.
- * Testing the arithmetic directly costs nothing and covers the same boundary.
- *
- * Not setBigUint64: the byte count is an ordinary number, and converting to
- * BigInt per digest to write eight bytes buys nothing.
- */
-export function lengthBitWords(totalBytes: number): [high: number, low: number] {
-  const bits = totalBytes * 8;
-  // `bits >>> 0` is ToUint32, i.e. modulo 2^32 — exactly the low word.
-  return [Math.floor(bits / 0x1_0000_0000), bits >>> 0];
 }
 
 /** One-shot form, for small inputs and for the tests. */
