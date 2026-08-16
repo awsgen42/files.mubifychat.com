@@ -4,14 +4,13 @@
  *
  * This exists because of a failure that was silent for as long as it lasted.
  * public/sitemap.xml was a real file, so it could not go missing; replacing it
- * with a generator moved it into the build command, and a build command is a
- * string that can lose a step. Removing `node scripts/gen-sitemap.mjs` from it
- * produces a build that succeeds, deploys, and serves /sitemap.xml as a 404 —
- * demonstrated before this file was written. Nothing in the repo noticed:
- * `next build` does not know the file was supposed to exist, gen-sw.mjs
- * cheerfully precached one URL fewer, and the tests that would have caught it
- * are skipped when out/ is absent, which it is when `npm test` runs before
- * `npm run build`.
+ * with a post-build script moved it into the build command, and a build command
+ * is a string that can lose a step — or never have had it. A deploy running
+ * `next build` produces a complete, working site with no sitemap in it and exit
+ * code 0. The sitemap is a route again now, so that particular hole is closed,
+ * but sw.js still comes from a post-build step and the tests that would catch
+ * either are skipped when out/ is absent, which it is when `npm test` runs
+ * before the build.
  *
  * So the rule is: the artifacts are named here, and their absence is a build
  * failure rather than a thing someone notices in Search Console eight weeks
@@ -25,7 +24,7 @@ import { join, relative, sep } from 'node:path';
 const OUT = 'out';
 const SITE_URL = 'https://www.mubifiles.com';
 
-/** Kept in step with gen-sitemap.mjs, for the same reason it has one. */
+/** Re-checked here against the built file, not just asserted in the route. */
 const MIN_URLS = 6;
 
 const problems = [];
@@ -60,7 +59,7 @@ else if (assetsDir.replace(/^\.\//, '').replace(/\/$/, '') !== OUT) {
 const sitemapPath = join(OUT, 'sitemap.xml');
 let locs = [];
 if (!existsSync(sitemapPath)) {
-  fail('out/sitemap.xml is missing. gen-sitemap.mjs did not run in this build command.');
+  fail('out/sitemap.xml is missing. app/sitemap.ts did not emit — this build did not export it.');
 } else {
   const xml = readFileSync(sitemapPath, 'utf8');
   if (readFileSync(sitemapPath).subarray(0, 3).equals(Buffer.from([0xef, 0xbb, 0xbf]))) {

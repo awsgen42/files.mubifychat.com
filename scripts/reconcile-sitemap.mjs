@@ -21,8 +21,8 @@ const SITE_URL = 'https://www.mubifiles.com';
 
 /** The rules, each with the reason it exists, quoted in the output. */
 const RULES = {
-  '/404/': 'not indexable: a 404 is a status, not content (gen-sitemap EXCLUDED_ROUTES)',
-  '/_not-found/': "not indexable: the App Router's internal name for the same page (gen-sitemap EXCLUDED_ROUTES)",
+  '/404/': 'not indexable: a 404 is a status, not content (lib/routes.ts EXCLUDED_ROUTES)',
+  '/_not-found/': "not indexable: the App Router's internal name for the same page (lib/routes.ts EXCLUDED_ROUTES)",
 };
 
 /** Files that are the same page as another URL, not a page of their own. */

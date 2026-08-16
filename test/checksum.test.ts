@@ -112,6 +112,17 @@ describe('sitemap covers every built route', () => {
     for (const url of listed) expect(pages, `${url} is listed but did not build`).toContain(url);
   });
 
+  /**
+   * The sitemap has to be emitted by the export itself. As a post-build script
+   * it was one step in a command string, and a deploy that ran `next build`
+   * shipped a working site with no sitemap in it and exit code 0 — which is
+   * what /sitemap.xml returning a 404 in production turned out to be.
+   */
+  it('is a route, so any command that builds the site builds it', () => {
+    expect(existsSync(join('app', 'sitemap.ts'))).toBe(true);
+    expect(existsSync(join('scripts', 'gen-sitemap.mjs'))).toBe(false);
+  });
+
   it('is generated, with no second copy in public/ to disagree with it', () => {
     // Next copies public/ into out/, so a file in both places has a winner
     // decided by step order rather than by intent.
