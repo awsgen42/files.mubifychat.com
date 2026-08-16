@@ -33,6 +33,12 @@ export const TOOLS: readonly ToolEntry[] = [
     blurb:
       'Shrink and resize photos, convert between JPEG, PNG and WebP, and take the set as a ZIP. Every image is processed on your own device.',
   },
+  {
+    path: '/tools/video-frames',
+    name: 'Video frame extractor',
+    blurb:
+      'Pull JPEG stills out of a video at the frame rate you choose. No upload, so no size limit and no copy left on a server.',
+  },
 ];
 
 export const TOOLS_INDEX_TITLE = 'Free file tools that run in your browser';

@@ -128,3 +128,73 @@ export function buildZip(entries: readonly ZipEntry[]): Blob {
 
   return new Blob([...parts, ...central, endBytes], { type: 'application/zip' });
 }
+
+/**
+ * The same archive, built without ever holding every payload at once.
+ *
+ * buildZip above takes the bytes of every entry, which is fine for a handful
+ * of compressed images and wrong for several hundred video frames: it would
+ * put the whole extraction in memory a second time, just to compute checksums.
+ *
+ * Here each blob is read once for its CRC and then released; what goes into
+ * the archive is the Blob itself, which the browser stores where it likes and
+ * can spill to disk. Peak cost is one entry, whatever the total.
+ */
+export async function buildZipFromBlobs(
+  entries: readonly { name: string; blob: Blob }[],
+): Promise<Blob> {
+  const encoder = new TextEncoder();
+  const parts: BlobPart[] = [];
+  const central: Uint8Array<ArrayBuffer>[] = [];
+  let offset = 0;
+
+  for (const entry of entries) {
+    const nameBytes = encoder.encode(entry.name);
+    const size = entry.blob.size;
+    // The one place the payload is in memory, and only this one payload.
+    const crc = crc32(new Uint8Array(await entry.blob.arrayBuffer()) as Uint8Array<ArrayBuffer>);
+
+    const localBytes = new Uint8Array(30);
+    const local = new DataView(localBytes.buffer);
+    local.setUint32(0, 0x04034b50, true);
+    local.setUint16(4, 20, true);
+    local.setUint16(6, 0x0800, true);
+    local.setUint16(8, 0, true); // stored: JPEG does not deflate
+    local.setUint16(12, 0x21, true);
+    local.setUint32(14, crc, true);
+    local.setUint32(18, size, true);
+    local.setUint32(22, size, true);
+    local.setUint16(26, nameBytes.length, true);
+    parts.push(localBytes, nameBytes, entry.blob);
+
+    const dirHeader = new Uint8Array(46);
+    const dir = new DataView(dirHeader.buffer);
+    dir.setUint32(0, 0x02014b50, true);
+    dir.setUint16(4, 20, true);
+    dir.setUint16(6, 20, true);
+    dir.setUint16(8, 0x0800, true);
+    dir.setUint16(14, 0x21, true);
+    dir.setUint32(16, crc, true);
+    dir.setUint32(20, size, true);
+    dir.setUint32(24, size, true);
+    dir.setUint16(28, nameBytes.length, true);
+    dir.setUint32(42, offset, true);
+    const dirBytes = new Uint8Array(46 + nameBytes.length);
+    dirBytes.set(dirHeader, 0);
+    dirBytes.set(nameBytes, 46);
+    central.push(dirBytes);
+
+    offset += 30 + nameBytes.length + size;
+  }
+
+  const centralSize = central.reduce((total, block) => total + block.length, 0);
+  const endBytes = new Uint8Array(22);
+  const end = new DataView(endBytes.buffer);
+  end.setUint32(0, 0x06054b50, true);
+  end.setUint16(8, entries.length, true);
+  end.setUint16(10, entries.length, true);
+  end.setUint32(12, centralSize, true);
+  end.setUint32(16, offset, true);
+
+  return new Blob([...parts, ...central, endBytes], { type: 'application/zip' });
+}
