@@ -98,15 +98,22 @@ export function outputNameFor(names: readonly string[]): string {
  * begins with `PK\x03\x04` because the *file* begins with it. Refusing that
  * would refuse the join that works.
  *
- * What actually separates the two is whether the signature repeats. A raw byte
- * split puts the header in part 001 and nowhere else; every subsequent part
- * starts mid-stream. A genuine multi-volume archive — RAR's .partN.rar, ZIP's
- * .z01 — is a sequence of independently framed volumes, so *every* volume
- * carries a header, and concatenating them produces garbage no matter what
- * order they are in. So the test is on the first two parts together.
+ * What this checks instead is whether the signature repeats across the first
+ * two parts, since a raw split puts a header at the very front and nowhere
+ * else; every subsequent part starts mid-stream.
  *
- * Checked against both real cases in the tests, including the one that matters:
- * a raw split of a ZIP is reported as joinable.
+ * Worth being precise about how narrow that is, because measuring it later
+ * shrank it. This comment used to claim every volume of a multi-volume archive
+ * carries a header. A spanned ZIP written by `zip -s` does not: .z01 opens with
+ * the PK\x07\x08 spanning marker and .z02 opens mid-stream, which is
+ * indistinguishable from a raw split by this test. RAR volumes are the case the
+ * repeat test is really for, and those arrive named .partN.rar, which never
+ * reaches here.
+ *
+ * So it earns its place on one real scenario: archive volumes renamed to
+ * .001/.002. Everything else it sees is a raw split, reported as joinable —
+ * including a raw split of a ZIP, which is the case the usual PK-header advice
+ * gets backwards, and the one the tests pin down.
  */
 export type SplitKind =
   | { kind: 'raw'; container: string | null }
