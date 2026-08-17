@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { ToolPostLink } from '@/components/BlogPost';
 import { ContentPageCta, ContentPageFaq, ContentPageShell } from '@/components/ContentPageShell';
 import { SplitFileTool } from '@/components/SplitFileTool';
 import { pageMetadata } from '@/lib/seo';
@@ -59,6 +60,8 @@ export default function SplitFilePage() {
         <h2 className="text-lg font-semibold">Or do it without a website at all</h2>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{NO_LOCK_IN}</p>
       </section>
+
+      <ToolPostLink toolPath="/tools/split-file" />
 
       <ContentPageFaq faq={SPLIT_FAQ} />
 

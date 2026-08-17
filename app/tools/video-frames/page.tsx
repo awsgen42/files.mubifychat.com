@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { ToolPostLink } from '@/components/BlogPost';
 import { ContentPageCta, ContentPageFaq, ContentPageShell } from '@/components/ContentPageShell';
 import { VideoFramesTool } from '@/components/VideoFramesTool';
 import { pageMetadata } from '@/lib/seo';
@@ -70,6 +71,8 @@ export default function VideoFramesPage() {
         </ol>
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{SUPPORTED_NOTE}</p>
       </section>
+
+      <ToolPostLink toolPath="/tools/video-frames" />
 
       <ContentPageFaq faq={VIDEO_FRAMES_FAQ} />
 

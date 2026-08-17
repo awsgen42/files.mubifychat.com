@@ -77,3 +77,27 @@ export function buildBreadcrumbSchema(pageName: string, path: string) {
     ],
   };
 }
+
+/**
+ * BlogPosting for a post. No `dateModified`: it would have to be either a lie
+ * or a build timestamp, and a build timestamp is the same false signal the
+ * sitemap deliberately avoids. `datePublished` is written by hand once.
+ */
+export function buildArticleSchema(
+  article: { headline: string; description: string; published: string },
+  path: string,
+) {
+  const url = `${SITE_URL}${path}`.replace(/\/?$/, '/');
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BlogPosting',
+    headline: article.headline,
+    description: article.description,
+    datePublished: article.published,
+    mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+    url,
+    image: OG_IMAGE.url,
+    author: { '@type': 'Organization', name: 'Mubifiles', url: `${SITE_URL}/` },
+    publisher: { '@type': 'Organization', name: 'Mubifiles', url: `${SITE_URL}/` },
+  };
+}

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { SiteFooter } from '@/components/SiteFooter';
 import { SiteHeader } from '@/components/SiteHeader';
 import { buildFaqSchema, type FaqEntry } from '@/lib/faq';
-import { buildBreadcrumbSchema } from '@/lib/seo';
+import { buildArticleSchema, buildBreadcrumbSchema } from '@/lib/seo';
 
 /**
  * Shared chrome for static content pages: header, breadcrumb, footer and the
@@ -15,6 +15,7 @@ export function ContentPageShell({
   breadcrumbName,
   path,
   faq,
+  article,
   title,
   subhead,
   tool,
@@ -24,6 +25,15 @@ export function ContentPageShell({
   path: string;
   /** Omit on pages that have no FAQ; no FAQPage schema is emitted then. */
   faq?: readonly FaqEntry[];
+  /**
+   * Set on a blog post, which gets BlogPosting instead of FAQPage.
+   *
+   * Deliberately separate from `faq` rather than another flavour of it: a post
+   * is an article with a date and an author, an FAQ is a list of questions the
+   * page actually renders, and a page that claimed both without showing both
+   * would be the exact mismatch the FAQPage placement check exists to catch.
+   */
+  article?: { headline: string; description: string; published: string };
   /**
    * The page heading. Supplying it opts into the tool-page ordering below;
    * omitting it leaves the page to render its own <h1> among the children,
@@ -87,6 +97,12 @@ export function ContentPageShell({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(buildFaqSchema(faq)) }}
+        />
+      )}
+      {article && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(buildArticleSchema(article, path)) }}
         />
       )}
       <script

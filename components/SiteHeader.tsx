@@ -24,6 +24,24 @@ export function SiteHeader({
 }) {
   const home = path === '/';
   const inTools = path === '/tools' || path.startsWith('/tools/');
+  const inBlog = path === '/blog' || path.startsWith('/blog/');
+
+  /**
+   * The wordmark's breakpoint depends on what else the row is carrying.
+   *
+   * With two nav links the row is 177px wide. At 390px the brand block is
+   * 173px, which leaves 8px of gap — it fits, but only just. Add the End
+   * session button the home page shows while a session is open and the row
+   * becomes 225px: measured, the header overflowed by 20px at 380px and 10px
+   * at 390px, and at 380px the page itself gained a horizontal scrollbar.
+   *
+   * So when the header carries extra controls, the wordmark waits until 480px
+   * and the logo stands alone below that, exactly as it already does below
+   * 380px. Nothing is lost that the sr-only name does not still say, and the
+   * alternative was a four-item row that does not fit on the phone most people
+   * are holding.
+   */
+  const wordmarkFrom = actions ? 'hidden min-[480px]:block' : 'hidden min-[380px]:block';
 
   const brand = (
     <>
@@ -36,7 +54,7 @@ export function SiteHeader({
           same thing. The name is kept for screen readers, so nothing is lost
           except pixels. */}
       <span className="sr-only">Mubifiles</span>
-      <div aria-hidden="true" className="hidden min-[380px]:block">
+      <div aria-hidden="true" className={wordmarkFrom}>
         {/* Not an <h1>: the page below owns its own heading. */}
         <p className="text-lg font-semibold leading-tight">Mubifiles</p>
         <p className="text-xs text-muted-foreground">Phone to PC in seconds</p>
@@ -70,6 +88,16 @@ export function SiteHeader({
           )}
         >
           Tools
+        </Link>
+        <Link
+          href="/blog"
+          aria-current={inBlog ? (path === '/blog' ? 'page' : 'true') : undefined}
+          className={cx(
+            buttonClasses('ghost', 'min-h-11 px-3'),
+            inBlog && 'bg-accent-soft text-accent hover:bg-accent-soft hover:text-accent',
+          )}
+        >
+          Blog
         </Link>
         {actions}
         <ThemeToggle />

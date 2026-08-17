@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { ChecksumTool } from '@/components/ChecksumTool';
+import { ToolPostLink } from '@/components/BlogPost';
 import { ContentPageCta, ContentPageFaq, ContentPageShell } from '@/components/ContentPageShell';
 import { CHECKSUM_FAQ, LIMITS_NOTE, VERIFY_STEPS } from '@/lib/checksum';
 import { pageMetadata } from '@/lib/seo';
@@ -59,6 +60,8 @@ export default function ChecksumPage() {
         </ol>
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{LIMITS_NOTE}</p>
       </section>
+
+      <ToolPostLink toolPath="/tools/checksum" />
 
       <ContentPageFaq faq={CHECKSUM_FAQ} />
 
