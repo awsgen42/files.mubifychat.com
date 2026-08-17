@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  classifyParts,
+  classifyFirstPart,
   orderParts,
   orderProblemMessage,
   outputNameFor,
@@ -9,7 +9,6 @@ import {
   partName,
   partRanges,
   partitionDropped,
-  structuredMessage,
 } from '../lib/split';
 
 describe('cutting the file up', () => {
@@ -141,35 +140,70 @@ describe('control: a size check cannot notice a missing part', () => {
 
 /* ------------------------------------------------------------------ */
 
-describe('telling a raw split from a multi-volume archive', () => {
-  const zip = (extra: number[] = []) => new Uint8Array([0x50, 0x4b, 0x03, 0x04, ...extra]);
-  const rar = () => new Uint8Array([0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x00]);
-  const middle = () => new Uint8Array([0x9f, 0x2c, 0x00, 0xd3, 0x77, 0x01, 0x4e, 0x22]);
+/**
+ * Byte-for-byte the first eight bytes of real files, produced with 7z, zip and
+ * `zip -s` and read back with od. Every one of these was joined for real and
+ * the result checked with the tool that owns the format.
+ */
+describe('saying what a set of parts actually is', () => {
+  const head = (...bytes: number[]) => new Uint8Array([...bytes, 0, 0, 0, 0, 0, 0, 0, 0].slice(0, 8));
+  const zipVolume = () => head(0x50, 0x4b, 0x03, 0x04, 0x0a, 0x00, 0x00, 0x00);
+  const sevenZipVolume = () => head(0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c, 0x00, 0x04);
+  const spannedZip = () => head(0x50, 0x4b, 0x07, 0x08, 0x50, 0x4b, 0x03, 0x04);
+  const rar = () => head(0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x00);
+  const plain = () => head(0x42, 0xe1, 0x79, 0xbd, 0x99, 0x9d, 0x2d, 0x8e);
 
-  it('calls a raw split of a ZIP joinable, which is the case that matters', () => {
-    // The rule usually given — "part 001 starts with PK, so do not join" —
-    // gets exactly this wrong, and it is the ordinary use of the tool.
-    expect(classifyParts(zip(), middle())).toEqual({ kind: 'raw', container: 'ZIP' });
+  it('does not refuse a 7-Zip volume split, which joins perfectly', () => {
+    // `7z a -v1m vol.7z payload.bin`, then `cat vol.7z.??? > joined.7z`:
+    // 7z t passes and the extracted payload matches the original digest.
+    const verdict = classifyFirstPart(sevenZipVolume());
+    expect(verdict.refuse).toBe(false);
+    expect(verdict.container).toBe('7-Zip');
+    expect(verdict.message).toContain('open that in 7-Zip afterwards');
   });
 
-  it('refuses a set where every volume carries its own header', () => {
-    expect(classifyParts(zip(), zip())).toEqual({ kind: 'structured', container: 'ZIP' });
-    expect(classifyParts(rar(), rar())).toEqual({ kind: 'structured', container: 'RAR' });
+  it('does not refuse a split ZIP, which is the commonest case there is', () => {
+    const verdict = classifyFirstPart(zipVolume());
+    expect(verdict.refuse).toBe(false);
+    expect(verdict.container).toBe('ZIP');
+    expect(verdict.message).toContain('gives you the .zip back');
   });
 
-  it('says nothing useful about a plain file, and says it as raw', () => {
-    expect(classifyParts(middle(), middle())).toEqual({ kind: 'raw', container: null });
+  it('refuses a spanned ZIP, and only a spanned ZIP', () => {
+    // The one case where raw concatenation shifts every offset by four bytes:
+    // 7-Zip reports a missing volume, python zipfile reports the entry corrupt.
+    const verdict = classifyFirstPart(spannedZip());
+    expect(verdict.refuse).toBe(true);
+    expect(verdict.container).toBe('ZIP (spanned)');
+    expect(verdict.message).toContain('zip -s');
   });
 
-  it('treats a single part as raw, because joining one part is a copy', () => {
-    expect(classifyParts(zip())).toEqual({ kind: 'raw', container: 'ZIP' });
-    expect(classifyParts(zip(), new Uint8Array())).toEqual({ kind: 'raw', container: 'ZIP' });
+  it('checks the spanning marker before the ordinary local header', () => {
+    // PK\x07\x08 begins with the same two bytes as PK\x03\x04; testing in the
+    // wrong order would read every spanned ZIP as an ordinary one.
+    expect(classifyFirstPart(spannedZip()).container).not.toBe('ZIP');
   });
 
-  it('names the container in the refusal, so the message is actionable', () => {
-    expect(structuredMessage('RAR')).toContain('RAR');
-    expect(structuredMessage('RAR')).toContain('WinRAR');
-    expect(structuredMessage('7-Zip')).toContain('7-Zip');
+  it('informs on RAR and says the ambiguity out loud', () => {
+    const verdict = classifyFirstPart(rar());
+    expect(verdict.refuse).toBe(false);
+    expect(verdict.message).toContain('.part1.rar');
+  });
+
+  it('says nothing about a file it does not recognise', () => {
+    expect(classifyFirstPart(plain())).toEqual({ refuse: false, container: null, message: null });
+  });
+});
+
+/**
+ * The false positive the first version of this feature would have shipped: a
+ * rule that refused anything with an archive signature in part 001 blocks
+ * 7-Zip's own volume split, which is a raw byte split that joins perfectly.
+ */
+describe('control: refusing a 7-Zip volume split would be wrong', () => {
+  it.fails('refuses a .7z.001 set', () => {
+    const sevenZip = new Uint8Array([0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c, 0x00, 0x04]);
+    expect(classifyFirstPart(sevenZip).refuse).toBe(true);
   });
 });
 

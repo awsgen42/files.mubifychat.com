@@ -28,7 +28,7 @@ export const WHY_LOCAL: readonly { title: string; body: string }[] = [
   },
   {
     title: 'It knows which kind of split you have.',
-    body: 'A folder of .001 files is either a raw byte split, which joins end to end, or a multi-volume archive, which does not and needs the original program. The first bytes of your parts are inspected and you are told which you have before anything is written, instead of finding out from a file that will not open.',
+    body: 'The first bytes of part 001 are read and you are told what you are holding — a split ZIP, a split .7z, or something with no signature at all — before anything is written. Almost all of them join fine, including 7-Zip’s own .7z.001 volumes; the one exception is a ZIP written by `zip -s`, whose volumes carry a spanning marker that makes raw joining produce a malformed archive, and that is the only case this refuses.',
   },
   {
     title: 'Nothing is uploaded, so nothing is stored.',
@@ -53,8 +53,8 @@ export const SPLIT_FAQ: readonly FaqEntry[] = [
     a: 'Select or drag every numbered part into the box above and choose where to save. The joining happens in this page, on your own device, so there is nothing to download and install and nothing to sign up for. If you would rather not use a website at all, one command does it: `cat myfile.zip.* > myfile.zip` on macOS or Linux, `copy /b myfile.zip.001 + myfile.zip.002 myfile.zip` on Windows.',
   },
   {
-    q: 'What if the parts are really a RAR or ZIP multi-volume archive?',
-    a: 'Then joining them end to end produces a broken file, and this page will refuse rather than let you. The two cases look identical from the filenames, so the first bytes of the first two parts are checked: a raw split has a file header only at the very start, while a multi-volume archive has one at the front of every volume. If it is the second kind you are told to open the first volume with 7-Zip or The Unarchiver, which finds the rest itself.',
+    q: 'What if the parts came out of 7-Zip or WinRAR?',
+    a: 'Then they almost certainly still join. 7-Zip’s volume option produces a raw byte split — `archive.7z.001`, `archive.7z.002` — and concatenating those gives back the original .7z, which you then open in 7-Zip; the same is true of its ZIP volumes. We checked rather than assumed: joining a 7z volume set here produces bytes identical to `cat` of the same parts, and that file passes `7z t` and extracts to the original digest. The single case that does not work is a ZIP made with `zip -s`, whose first volume starts with a spanning marker; joining those shifts every offset in the archive and the result is malformed, so the join is refused and you are told to open the .zip with 7-Zip instead. A true multi-volume RAR is named .part1.rar and never looks like a .001 set in the first place.',
   },
   {
     q: 'Is there a size limit?',

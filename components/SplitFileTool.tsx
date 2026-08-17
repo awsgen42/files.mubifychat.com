@@ -12,7 +12,7 @@ import {
 } from '@/lib/manifest';
 import {
   PART_PRESETS,
-  classifyParts,
+  classifyFirstPart,
   hashParts,
   headOf,
   joinParts,
@@ -24,9 +24,8 @@ import {
   partitionDropped,
   saveMode,
   splitFile,
-  structuredMessage,
+  type HeaderVerdict,
   type SaveMode,
-  type SplitKind,
 } from '@/lib/split';
 import { AlertIcon, CheckIcon, DownloadIcon, LockIcon, UploadIcon } from './Icons';
 import { Button, Card, Pill, cx } from './ui';
@@ -100,7 +99,7 @@ function JoinPane() {
   const [setAside, setSetAside] = useState<string[]>([]);
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [manifestUnreadable, setManifestUnreadable] = useState(false);
-  const [kind, setKind] = useState<SplitKind | null>(null);
+  const [verdict, setVerdict] = useState<HeaderVerdict | null>(null);
   const [outputName, setOutputName] = useState('');
   const [expected, setExpected] = useState('');
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -131,7 +130,7 @@ function JoinPane() {
     setSetAside(rest.map((f) => f.name));
     setResult(null);
     setError(null);
-    setKind(null);
+    setVerdict(null);
     setManifest(null);
     setManifestUnreadable(false);
     setOutputName(outputNameFor(parts.map((f) => f.name)));
@@ -148,27 +147,26 @@ function JoinPane() {
     }
   }, []);
 
-  // The header check, on the two parts that decide it.
+  // What the set is, read from the first bytes of part 001. Informational
+  // except for a spanned ZIP, which is the one shape raw joining cannot fix.
   useEffect(() => {
     if (!ordering.ok) {
-      setKind(null);
+      setVerdict(null);
       return;
     }
     let live = true;
     const byName = new Map(files.map((f) => [f.name, f]));
-    const ordered = ordering.ordered.map((p) => byName.get(p.name)!);
-    void Promise.all([headOf(ordered[0]), ordered[1] ? headOf(ordered[1]) : Promise.resolve(undefined)]).then(
-      ([first, second]) => {
-        if (live) setKind(classifyParts(first, second));
-      },
-    );
+    const first = byName.get(ordering.ordered[0].name)!;
+    void headOf(first).then((head) => {
+      if (live) setVerdict(classifyFirstPart(head));
+    });
     return () => {
       live = false;
     };
   }, [ordering, files]);
 
-  const structured = kind?.kind === 'structured' ? kind.container : null;
-  const blocked = !ordering.ok || structured !== null || mismatches.length > 0;
+  const refused = verdict?.refuse === true ? verdict.message : null;
+  const blocked = !ordering.ok || refused !== null || mismatches.length > 0;
 
   const run = async () => {
     if (blocked) return;
@@ -265,10 +263,10 @@ function JoinPane() {
               Choose the numbered parts of one file — .001, .002 and so on. The order you pick them in does not
               matter.
             </span>
-          ) : structured ? (
+          ) : refused ? (
             <span className="flex items-start gap-1.5 text-danger">
               <AlertIcon width={14} height={14} className="mt-0.5 shrink-0" />
-              <span>{structuredMessage(structured)}</span>
+              <span>{refused}</span>
             </span>
           ) : !ordering.ok ? (
             <span className="flex items-start gap-1.5 text-danger">
@@ -289,13 +287,15 @@ function JoinPane() {
               <span className="block text-xs text-muted-foreground">
                 {manifest
                   ? `Checked against ${manifest.original}.join.txt: ${manifest.parts.length} parts, every size as recorded.`
-                  : kind?.container
-                    ? `A raw split of a ${kind.container} file — joining these gives the ${kind.container} back.`
-                    : 'Sorted by number, so the order you picked them in does not matter.'}
+                  : 'Sorted by number, so the order you picked them in does not matter.'}
               </span>
             </span>
           )}
         </div>
+
+        {verdict?.message && !verdict.refuse && ordering.ok && (
+          <p className="mt-2 text-xs text-muted-foreground">{verdict.message}</p>
+        )}
 
         {(setAside.length > 0 || manifestUnreadable) && (
           <p className="mt-2 text-xs text-muted-foreground">

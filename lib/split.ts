@@ -84,86 +84,107 @@ export function outputNameFor(names: readonly string[]): string {
 }
 
 /* ------------------------------------------------------------------ */
-/* Raw byte split, or a structured archive?                            */
+/* What are you actually holding?                                      */
 /* ------------------------------------------------------------------ */
 
 /**
- * The question behind "how do I open a .001 file", which no article answers
- * because answering it requires looking at the bytes.
+ * Reads the first bytes of part 001 and says what the set is.
  *
- * The rule usually proposed — an archive signature at the start of part 001
- * means the parts are a structured archive and must not be joined raw — is
- * wrong, and wrong in the most common direction. Splitting a .zip is the
- * ordinary case for this tool, and the first part of a raw split of a .zip
- * begins with `PK\x03\x04` because the *file* begins with it. Refusing that
- * would refuse the join that works.
+ * This is not a gate. An earlier version refused anything whose first part
+ * carried an archive signature, which would have blocked the two commonest
+ * correct workflows there are: 7-Zip's volume split writes `.7z.001`,
+ * `.7z.002` and its ZIP equivalent writes `.zip.001` — both are raw byte
+ * splits, and both join perfectly. Measured, not assumed: cat of a 7z volume
+ * set passes `7z t` and extracts to the original payload digest, and the same
+ * holds for the zip volumes.
  *
- * What this checks instead is whether the signature repeats across the first
- * two parts, since a raw split puts a header at the very front and nowhere
- * else; every subsequent part starts mid-stream.
+ * Exactly one signature means raw joining does not work, and it is the
+ * spanning marker `PK\x07\x08` that `zip -s` writes at the very front of the
+ * first volume. Concatenating those shifts every recorded offset by four
+ * bytes. What that produces, checked against three implementations:
  *
- * Worth being precise about how narrow that is, because measuring it later
- * shrank it. This comment used to claim every volume of a multi-volume archive
- * carries a header. A spanned ZIP written by `zip -s` does not: .z01 opens with
- * the PK\x07\x08 spanning marker and .z02 opens mid-stream, which is
- * indistinguishable from a raw split by this test. RAR volumes are the case the
- * repeat test is really for, and those arrive named .partN.rar, which never
- * reaches here.
+ *   7-Zip            ERROR = Missing volume, Unavailable data
+ *   python zipfile   opens, and testzip() reports the entry corrupt
+ *   unzip            "bad zipfile offset (local header sig)", exit 2, then
+ *                    re-compensates and happens to extract
  *
- * So it earns its place on one real scenario: archive volumes renamed to
- * .001/.002. Everything else it sees is a raw split, reported as joinable —
- * including a raw split of a ZIP, which is the case the usual PK-header advice
- * gets backwards, and the one the tests pin down.
+ * Two of three reject it, so refusing is right — but the message says the
+ * archive is malformed rather than that the data is gone, because with one
+ * tool it is not.
+ *
+ * Everything else informs. Telling someone holding a folder of .001 files what
+ * is in it is the thing this can do that an article cannot.
  */
-export type SplitKind =
-  | { kind: 'raw'; container: string | null }
-  | { kind: 'structured'; container: string };
+export interface HeaderVerdict {
+  /** The only true value is a spanned ZIP. */
+  refuse: boolean;
+  /** Short label for the container, or null when nothing was recognised. */
+  container: string | null;
+  /** What to show the user; null when there is nothing worth saying. */
+  message: string | null;
+}
 
 interface Signature {
   name: string;
   bytes: number[];
+  refuse?: true;
+  message: string;
 }
 
 /**
- * `PK\x07\x08` is the spanning marker a multi-volume ZIP writes at the very
- * front, so it is listed separately from the ordinary local file header.
+ * Order matters: PK\x07\x08 is checked before PK\x03\x04, since a spanned
+ * ZIP's first volume begins with the spanning marker and would otherwise be
+ * read as an ordinary local file header.
  */
 const SIGNATURES: Signature[] = [
-  { name: 'ZIP', bytes: [0x50, 0x4b, 0x03, 0x04] },
-  { name: 'ZIP', bytes: [0x50, 0x4b, 0x05, 0x06] },
-  { name: 'ZIP (spanned)', bytes: [0x50, 0x4b, 0x07, 0x08] },
-  { name: 'RAR', bytes: [0x52, 0x61, 0x72, 0x21, 0x1a, 0x07] },
-  { name: '7-Zip', bytes: [0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c] },
-  { name: 'gzip', bytes: [0x1f, 0x8b] },
+  {
+    name: 'ZIP (spanned)',
+    bytes: [0x50, 0x4b, 0x07, 0x08],
+    refuse: true,
+    message:
+      'These are the volumes of a spanned ZIP — the first part begins with the marker `zip -s` writes. Joining them end to end shifts every offset inside the archive by four bytes, and the result is a file 7-Zip refuses to open. Put all the volumes in one folder and open the last one (the .zip) with 7-Zip or The Unarchiver instead.',
+  },
+  {
+    name: 'ZIP',
+    bytes: [0x50, 0x4b, 0x03, 0x04],
+    message: 'This looks like a split ZIP. Joining gives you the .zip back, which you then open normally.',
+  },
+  {
+    name: 'ZIP',
+    bytes: [0x50, 0x4b, 0x05, 0x06],
+    message: 'This looks like a split ZIP. Joining gives you the .zip back, which you then open normally.',
+  },
+  {
+    name: '7-Zip',
+    bytes: [0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c],
+    message:
+      'This looks like a split .7z — which is what 7-Zip’s own volume option produces. Joining gives you the .7z back; open that in 7-Zip afterwards to get the files out.',
+  },
+  {
+    name: 'RAR',
+    bytes: [0x52, 0x61, 0x72, 0x21, 0x1a, 0x07],
+    message:
+      'This looks like a split .rar, and the names decide what that means. Numbered .001/.002 parts are a raw split, which joins back into one .rar. A true multi-volume RAR is named .part1.rar, .part2.rar and would not have reached here. Going by the names, joining is right — open the joined .rar with 7-Zip or WinRAR.',
+  },
+  {
+    name: 'gzip',
+    bytes: [0x1f, 0x8b],
+    message: 'This looks like a split .gz. Joining gives you the .gz back, which you then decompress as usual.',
+  },
 ];
 
-function signatureOf(head: Uint8Array): string | null {
+export function classifyFirstPart(head: Uint8Array): HeaderVerdict {
   for (const sig of SIGNATURES) {
-    if (sig.bytes.every((byte, i) => head[i] === byte)) return sig.name;
+    if (sig.bytes.every((byte, i) => head[i] === byte)) {
+      return { refuse: sig.refuse === true, container: sig.name, message: sig.message };
+    }
   }
-  return null;
-}
-
-/**
- * Given the first bytes of the first two parts, says whether joining raw is
- * the right thing to do. With only one part there is nothing to compare
- * against, so it reports raw: one part joined raw is a copy, which is harmless.
- */
-export function classifyParts(firstHead: Uint8Array, secondHead?: Uint8Array): SplitKind {
-  const first = signatureOf(firstHead);
-  if (!first) return { kind: 'raw', container: null };
-  if (!secondHead || secondHead.length === 0) return { kind: 'raw', container: first };
-  const second = signatureOf(secondHead);
-  return second === first ? { kind: 'structured', container: first } : { kind: 'raw', container: first };
+  return { refuse: false, container: null, message: null };
 }
 
 /** Reads enough of a part to look for a signature. */
 export async function headOf(file: File): Promise<Uint8Array> {
   return new Uint8Array(await file.slice(0, 8).arrayBuffer());
-}
-
-export function structuredMessage(container: string): string {
-  return `These look like ${container} volumes, not a raw split: every part starts with a ${container} header, which only happens when each one is its own archive. Joining them end to end would produce a broken file. Open the first part with ${container === 'RAR' ? '7-Zip, WinRAR or The Unarchiver' : '7-Zip or The Unarchiver'} instead — it finds the other volumes itself.`;
 }
 
 export type OrderProblem =
