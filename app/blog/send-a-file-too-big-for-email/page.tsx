@@ -17,104 +17,129 @@ export default function Page() {
     <BlogPostPage post={post}>
       <Prose>
         <p>
-          Attachment limits are not really about your file. They are about a mail server deciding
-          how much of its disk your message is allowed to occupy, and a messaging app deciding how
-          much of its bandwidth a forward is worth. The number is a policy, so arguing with it does
-          not work; you route around it instead.
-        </p>
-        <p>There are four ways round, and they fail in different places.</p>
-      </Prose>
-
-      <Prose heading="1. Send it to the other device directly">
-        <p>
-          If the file is going from your phone to your own laptop, or to someone sitting near you,
-          the attachment limit is a detour. A transfer session moves the file once, without it
-          becoming an email at all.
+          Cut the file into numbered parts and send the parts. It is the only route that needs
+          nothing from the person receiving it — no account, no app, no upload to a third party —
+          and it works on any file of any size.
         </p>
         <p>
-          That is what this site does: a six-digit code on one device, the same code on the other,
-          and the file is available to fetch. Our own limits are 1 GB per file and 3 GB per session
-          — real numbers rather than a marketing &ldquo;unlimited&rdquo;, and the session is deleted
-          when it expires.
-        </p>
-        <p>
-          The cost is that both ends have to be present at roughly the same time. It is a transfer,
-          not a mailbox.
+          There are three other routes and they are each better in specific situations. Here is what
+          every one of them actually costs you.
         </p>
       </Prose>
 
-      <Prose heading="2. Split it into parts and send the parts">
+      <Prose heading="Split it into parts">
         <p>
-          The oldest answer and still the most robust, because it needs nothing from the recipient
-          beyond the ability to receive several attachments. A 300 MB file becomes twelve 25 MB
-          pieces that each fit an ordinary attachment.
+          A 300 MB video becomes twelve 25 MB pieces, and twelve 25 MB attachments go through where
+          one 300 MB attachment does not. The pieces are raw byte ranges named{' '}
+          <code>video.mp4.001</code>, <code>video.mp4.002</code> and so on.
         </p>
         <p>
-          The pieces are raw byte ranges — <code>myfile.zip.001</code>, <code>.002</code>, and so on
-          — which means the person at the other end does not need your tool, or any tool:
+          The thing that makes this route good is that the recipient does not need your tool, or any
+          tool. One command:
         </p>
-        <Measured>{`cat myfile.zip.??? > myfile.zip            # macOS, Linux
-copy /b myfile.zip.001+myfile.zip.002 myfile.zip   # Windows`}</Measured>
+        <Measured>{`cat video.mp4.??? > video.mp4                          # macOS, Linux
+copy /b video.mp4.001+video.mp4.002 video.mp4          # Windows`}</Measured>
         <p>
-          <Link href="/tools/split-file">Our splitter</Link> writes the parts straight to a folder
-          you choose and adds an optional <code>.join.txt</code> beside them listing every part, its
-          exact size, the SHA-256 of the original, and both of those commands. Nothing goes inside
-          the parts themselves — that was a hard constraint, because the moment a tool writes its
-          own header into the pieces, the recipient needs that tool.
+          That is a claim worth testing rather than repeating, so we test it on every change: split a
+          file with our tool, throw away everything the tool wrote except the numbered parts,
+          reassemble them with <code>cat</code>, and compare digests against the original.
         </p>
+        <Measured>{`source            629145600 bytes  c4255503e1da1cf183273999ea8e9e393f71587fe9e75425b8bfaa4d11c6cb7e
+joined with cat   629145600 bytes  c4255503e1da1cf183273999ea8e9e393f71587fe9e75425b8bfaa4d11c6cb7e`}</Measured>
         <p>
-          We tested that claim rather than asserting it: split a 300 MB file, delete the manifest,
-          reassemble the parts with <code>cat</code> alone, and compare digests.
-        </p>
-        <Measured>{`source            314572800 bytes  80f34a13ce01fd002b19a039639a894cffe8a8b20140c636bdc2cebadfecad94
-cat of the parts  314572800 bytes  80f34a13ce01fd002b19a039639a894cffe8a8b20140c636bdc2cebadfecad94`}</Measured>
-        <p>
-          The catch worth knowing: several small emails are more likely to be delivered than one
-          large one, but a mail provider may still treat twelve messages in a row as a pattern worth
-          slowing down. Send them over a few minutes rather than all at once.
-        </p>
-      </Prose>
-
-      <Prose heading="3. Upload it somewhere and send a link">
-        <p>
-          Cloud storage is the default answer and it is a perfectly good one when the file is not
-          sensitive and the recipient is happy to click through a consent screen.
+          Nothing is added to the parts — no header, no index — which is what keeps that true. If a
+          splitter writes its own marker into the pieces, you have quietly made the recipient
+          dependent on that splitter.
         </p>
         <p>
-          What you are trading is a copy. The file now exists on a third party&rsquo;s disk, under
-          their retention policy, indexed under your account, for as long as they keep it — which is
-          usually longer than the link is useful for. That is a reasonable trade for holiday photos
-          and a poor one for a contract, a scan of a passport, or a database dump.
+          <Link href="/tools/split-file">The splitter here</Link> runs in the browser, so the file is
+          never uploaded and its size is not a constraint. The limitation, since it decides whether
+          the route is available to you: writing parts straight into a folder needs Chrome or Edge on
+          a computer. Firefox and Safari cannot do that, so there each part arrives as a separate
+          download with a click for each — workable for four parts, tedious for forty.
+        </p>
+        <p>
+          The mild annoyance of this route is that several small emails in quick succession can look
+          to a mail provider like a pattern worth slowing down. Send them over a few minutes rather
+          than all at once.
         </p>
       </Prose>
 
-      <Prose heading="4. Put it on a USB stick — and the FAT32 trap">
+      <Prose heading="Send it straight to the other device">
         <p>
-          Physical media has no size limit worth worrying about. The filesystem does. A USB stick
-          formatted as FAT32 — which is most sticks, out of the box, because it is the only format
-          every device reads — cannot hold a single file larger than 4 GB.
+          If the file is going from your phone to your own laptop, or to someone in the same room,
+          turning it into an email attachment is a detour. A transfer session moves it once: a
+          six-digit code on one device, the same code on the other.
         </p>
         <p>
-          The failure is confusing because the stick has plenty of space free and the copy simply
-          refuses. Splitting fixes it: our part-size presets include a 2 GB option specifically for
-          this, sized just under the FAT32 ceiling so each piece copies without complaint.
+          Being direct about what this is, because the rest of this site argues that uploads are a
+          cost: <strong>this one is an upload.</strong> The file goes to storage both devices can
+          reach and is deleted when the session expires — 15 minutes of inactivity, 24 hours
+          maximum. Our limits are 1 GB per file and 3 GB per session, which are real numbers rather
+          than an &ldquo;unlimited&rdquo; that means something smaller.
+        </p>
+        <p>
+          Unlike splitting or hashing, this task cannot be done locally: something in the middle has
+          to hold the bytes until the second device asks for them. That is the difference between a
+          transfer and a tool, and it is why the tools on this site upload nothing and the transfer
+          does.
         </p>
       </Prose>
 
-      <Prose heading="Which one to use">
+      <Prose heading="Upload it and send a link">
         <p>
-          <strong>Both devices are yours and to hand</strong> — send it directly; there is no reason
-          for a copy to exist anywhere else.
+          Cloud storage is the default answer and it is the right one more often than this site&rsquo;s
+          usual argument suggests. If the file is not sensitive and the recipient is happy to click
+          through a consent screen, a link is the least friction available.
         </p>
         <p>
-          <strong>The recipient is elsewhere and the file is ordinary</strong> — a cloud link is the
-          least friction, and the copy does not matter.
+          What you are paying is a copy. The file now sits on a third party&rsquo;s disk, under their
+          retention policy, attached to your account, for considerably longer than the link stays
+          useful. That is a fine trade for holiday photos and a poor one for a contract, a scan of a
+          passport, or a database dump.
+        </p>
+      </Prose>
+
+      <Prose heading="Put it on a USB stick, and watch for FAT32">
+        <p>
+          Physical media has no size limit worth worrying about. The filesystem does, and this is the
+          one that catches people: a stick formatted as FAT32 cannot hold a single file larger than
+          4 GB, no matter how empty it is.
         </p>
         <p>
-          <strong>The file is sensitive, or the recipient cannot install anything, or you are
-          crossing a filesystem limit</strong> — split it. It is the only option on this list that
-          works without a server holding your file at any point, and the only one where the
-          recipient needs nothing but a shell command they already have.
+          The failure is baffling in the moment — 200 GB free, and the copy just refuses. Most sticks
+          ship as FAT32 because it is the format every device reads, so this is common rather than
+          exotic. Splitting fixes it, and our part-size presets include a 2 GB option sized under the
+          ceiling for exactly this.
+        </p>
+      </Prose>
+
+      <Prose heading="Which one I would use">
+        <p>
+          <strong>Both devices are mine and to hand:</strong> send it directly. There is no reason
+          for a copy to exist on a stranger&rsquo;s disk for a file that is going three feet.
+        </p>
+        <p>
+          <strong>Ordinary file, recipient elsewhere:</strong> a cloud link. The copy does not matter
+          and it is the least work for both of you.
+        </p>
+        <p>
+          <strong>Sensitive, or crossing a filesystem limit, or the recipient cannot install
+          anything:</strong> split it. It is the only route on this list where the file never
+          reaches a server at any point, and the only one where the person at the other end needs
+          nothing they do not already have.
+        </p>
+        <p>
+          One thing I would not bother with: the &ldquo;just zip it&rdquo; suggestion that appears in
+          most answers to this question. Video, photos and PDFs are already compressed, so there is
+          nothing left for ZIP to find. Measured on a video and a log file of comparable
+          pointlessness and usefulness:
+        </p>
+        <Measured>{`clip.webm   5,020,668 -> 5,021,289 bytes   0.0% saved (the ZIP is 621 bytes bigger)
+log.txt     2,360,000 ->     7,105 bytes  99.7% saved`}</Measured>
+        <p>
+          Zipping media buys you nothing and costs the recipient a step. Zipping text, spreadsheets
+          or a folder of many small files is transformative. Know which one you are holding.
         </p>
       </Prose>
     </BlogPostPage>
