@@ -43,6 +43,7 @@ export const ROUTE_META: Record<string, RouteMeta> = {
   '/tools/image-compress/': { changefreq: 'monthly', priority: 0.7 },
   '/tools/video-frames/': { changefreq: 'monthly', priority: 0.7 },
   '/tools/split-file/': { changefreq: 'monthly', priority: 0.7 },
+  '/tools/stylish-name/': { changefreq: 'monthly', priority: 0.7 },
   '/blog/': { changefreq: 'monthly', priority: 0.6 },
   '/blog/how-to-open-a-001-file/': { changefreq: 'yearly', priority: 0.6 },
   '/blog/send-a-file-too-big-for-email/': { changefreq: 'yearly', priority: 0.6 },

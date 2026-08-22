@@ -40,6 +40,12 @@ export const TOOLS: readonly ToolEntry[] = [
       'Pull JPEG stills out of a video at the frame rate you choose. No upload, so no size limit and no copy left on a server.',
   },
   {
+    path: '/tools/stylish-name',
+    name: 'Stylish name generator',
+    blurb:
+      'Fancy Unicode text for a display name, grouped by how likely each style is to survive being pasted — with the length in characters, UTF-16 units and bytes.',
+  },
+  {
     path: '/tools/split-file',
     name: 'Join .001 files, and split files',
     blurb:
