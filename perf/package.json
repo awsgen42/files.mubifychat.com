@@ -1,0 +1,15 @@
+{
+  "name": "mubifiles-perf",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Measurement harness. Deliberately a separate npm project: installing Playwright as a devDependency of the app would put it in the deploy's `npm ci`, and the playwright package downloads browser binaries on install unless an env var stops it. Nothing here is imported by application code, so it does not belong in the app's dependency graph at all.",
+  "scripts": {
+    "calibrate": "node pss.mjs --calibrate",
+    "worker-probe": "node worker-probe.mjs",
+    "bundle-cost": "node bundle-cost.mjs",
+    "zip-memory": "node zip-memory.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.62.1"
+  }
+}

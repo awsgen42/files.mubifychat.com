@@ -8,3 +8,8 @@ out/
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store
+
+# Measurement fixtures: regenerable from perf/make-export.py, too large to commit.
+perf/fixtures/*.zip
+perf/fixtures/build.log
+perf/node_modules/
