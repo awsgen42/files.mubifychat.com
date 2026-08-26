@@ -72,4 +72,11 @@ export const DEFAULT_META: RouteMeta = { changefreq: 'monthly', priority: 0.5 };
  * index by the X-Robots-Tag rule in vercel.json, which is a separate mechanism
  * and remains the one that matters for it.
  */
-export const EXCLUDED_ROUTES = new Set(['/404/', '/_not-found/']);
+export const EXCLUDED_ROUTES = new Set([
+  '/404/',
+  '/_not-found/',
+  // Under construction. It builds, so it must be accounted for, but asking
+  // Google to index a probe page would be worse than not listing it. Remove
+  // this line in the commit that ships the tool.
+  '/tools/instagram-data-download-viewer/',
+]);

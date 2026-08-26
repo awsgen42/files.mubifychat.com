@@ -23,6 +23,7 @@ const SITE_URL = 'https://www.mubifiles.com';
 const RULES = {
   '/404/': 'not indexable: a 404 is a status, not content (lib/routes.ts EXCLUDED_ROUTES)',
   '/_not-found/': "not indexable: the App Router's internal name for the same page (lib/routes.ts EXCLUDED_ROUTES)",
+  '/tools/instagram-data-download-viewer/': 'under construction, deliberately unlisted (lib/routes.ts EXCLUDED_ROUTES)',
 };
 
 /** Files that are the same page as another URL, not a page of their own. */

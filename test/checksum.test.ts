@@ -1,6 +1,7 @@
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { EXCLUDED_ROUTES } from '../lib/routes';
 import { compareDigest, extractDigest } from '../lib/hashes';
 
 const KNOWN = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
@@ -79,7 +80,10 @@ describe('control: the comparison must be able to say no', () => {
  */
 describe('sitemap covers every built route', () => {
   const OUT = 'out';
-  const NOT_INDEXABLE = new Set(['/404/', '/_not-found/']);
+  // Read from the same table the generator uses. This was a second hand-kept
+  // copy, and it went stale the first time a route was excluded — the build
+  // failed with the exclusion already in lib/routes.ts.
+  const NOT_INDEXABLE = EXCLUDED_ROUTES;
 
   const built = (): string[] => {
     const walk = (dir: string): string[] =>
