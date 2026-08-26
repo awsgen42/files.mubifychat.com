@@ -7,7 +7,9 @@
     "calibrate": "node pss.mjs --calibrate",
     "worker-probe": "node worker-probe.mjs",
     "bundle-cost": "node bundle-cost.mjs",
-    "zip-memory": "node zip-memory.mjs"
+    "zip-memory": "node zip-memory.mjs",
+    "viewer": "node viewer.mjs",
+    "controls": "node controls.mjs"
   },
   "dependencies": {
     "playwright": "1.62.1"

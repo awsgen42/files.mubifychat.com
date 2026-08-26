@@ -46,6 +46,12 @@ export const TOOLS: readonly ToolEntry[] = [
       'Fancy Unicode text for a display name, grouped by how likely each style is to survive being pasted — with the length in characters, UTF-16 units and bytes.',
   },
   {
+    path: '/tools/instagram-data-download-viewer',
+    name: 'Instagram data download viewer',
+    blurb:
+      'Read the messages in your Instagram export without uploading it or unzipping it, with conversations split across several files merged back into one timeline.',
+  },
+  {
     path: '/tools/split-file',
     name: 'Join .001 files, and split files',
     blurb:

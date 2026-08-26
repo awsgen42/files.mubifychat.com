@@ -133,6 +133,32 @@ else {
 
 if (!existsSync(join(OUT, 'index.html'))) fail('out/index.html is missing.');
 
+/**
+ * No TypeScript source in the export.
+ *
+ * Turbopack emits a module worker's entry file as a static asset as well as
+ * compiling it, which put `lib/instagram/archive.worker.ts` on the public
+ * origin verbatim. strip-worker-source.mjs deletes them; this is what makes
+ * that step's silence mean something. If the directory is renamed or the
+ * extension changes, the strip quietly does nothing and this fails the build.
+ */
+{
+  const walk = (dir) =>
+    readdirSync(dir).flatMap((entry) => {
+      const path = join(dir, entry);
+      return statSync(path).isDirectory() ? walk(path) : [path];
+    });
+  const leaked = existsSync(OUT) ? walk(OUT).filter((path) => /\.(ts|tsx)$/.test(path)) : [];
+  if (leaked.length > 0) {
+    fail(
+      `${leaked.length} TypeScript source file(s) in the export: ${leaked.join(', ')}. ` +
+        'Application source does not belong on a public origin.',
+    );
+  } else {
+    ok.push('no TypeScript source in the export');
+  }
+}
+
 /* ------------------------------------------------------------------ */
 
 for (const line of ok) console.log(`verify-output: ok — ${line}`);

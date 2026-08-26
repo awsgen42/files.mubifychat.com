@@ -18,6 +18,17 @@ import json, os, random, sys, zipfile
 
 OUT = sys.argv[1]
 TARGET_BYTES = int(float(sys.argv[2]) * 1024**3) if len(sys.argv) > 2 else 2 * 1024**3
+# --media-heavy: few threads, almost all of the bytes in photos and video
+# attached to messages, which is what actually breaks a phone. Padding an
+# archive with unattached media would inflate the file without inflating what
+# the viewer has to render, and would not test the thing being tested.
+MEDIA_HEAVY = '--media-heavy' in sys.argv
+# --big-media: the same total in far fewer, far larger attachments. The
+# media-heavy fixture is 4,200 photos of 180 KB, which tests the count; a
+# handful of long videos tests something different — whether materialising one
+# blob is itself the problem — and the two cannot be told apart in one archive.
+BIG_MEDIA = '--big-media' in sys.argv
+MEDIA_ITEM_BYTES = 15_000_000 if BIG_MEDIA else 180_000
 random.seed(20260826)
 
 ROOT = 'your_instagram_activity/messages/inbox'
@@ -82,7 +93,8 @@ BASE_TS = 1_600_000_000_000
 
 def write_thread(zf, slug, other, count, kind_at, media_files=0, split_every=10_000):
     """One thread, its messages split across files, newest-first within each."""
-    msgs = [message(i, BASE_TS + i * 60_000, OWNER if i % 2 else other, kind_at(i), slug)
+    kinds = [kind_at(i) for i in range(count)]
+    msgs = [message(i, BASE_TS + i * 60_000, OWNER if i % 2 else other, kinds[i], slug)
             for i in range(count)]
     chunks = [msgs[i:i + split_every] for i in range(0, len(msgs), split_every)] or [[]]
     # Instagram writes the newest messages in message_1.json.
@@ -97,11 +109,40 @@ def write_thread(zf, slug, other, count, kind_at, media_files=0, split_every=10_
         }
         put(zf, f'{ROOT}/{slug}/message_{n}.json',
             json.dumps(doc, ensure_ascii=True), zipfile.ZIP_DEFLATED)
-    for i in range(media_files):
-        # Incompressible, like a real JPEG.
-        put(zf, f'{ROOT}/{slug}/photos/{i:04d}.jpg', random.randbytes(180_000))
+    # Media files are named for the message that references them, capped at
+    # media_files. Writing 0..media_files-1 instead left most attachments
+    # pointing at entries that were never written, so a media measurement was
+    # half measuring the missing-attachment path.
+    wanted = [(i, kinds[i]) for i in range(count) if kinds[i] in ('photo', 'video')][:media_files]
+    for i, kind in wanted:
+        # Incompressible, like a real JPEG or an H.264 stream.
+        folder, ext = ('videos', 'mp4') if kind == 'video' else ('photos', 'jpg')
+        put(zf, f'{ROOT}/{slug}/{folder}/{i:04d}.{ext}', random.randbytes(MEDIA_ITEM_BYTES))
 
 total_messages = 0
+if MEDIA_HEAVY:
+    with zipfile.ZipFile(OUT, 'w', allowZip64=True) as zf:
+        put(zf, 'your_instagram_activity/messages/inbox/.keep', b'')
+        thread_no = 0
+        while os.path.getsize(OUT) < TARGET_BYTES:
+            slug = f'mediathread{thread_no:03d}_1784140000009{thread_no:03d}'
+            # Every referenced attachment is written. Referencing more than
+            # exist would have most rows render "not in this archive", which
+            # measures the missing path rather than the media path.
+            write_thread(zf, slug, NAMES[thread_no % len(NAMES)], 900,
+                         (lambda i: 'video' if i % 75 == 0 else 'text') if BIG_MEDIA
+                         else (lambda i: 'photo' if i % 2 else 'text'),
+                         media_files=12 if BIG_MEDIA else 450)
+            total_messages += 900
+            thread_no += 1
+            print(f'  media-heavy… {os.path.getsize(OUT) / 1024**3:.2f} GB, {thread_no} threads', flush=True)
+    size = os.path.getsize(OUT)
+    with zipfile.ZipFile(OUT) as zf:
+        entries = len(zf.namelist())
+    print(f'wrote {OUT}: {size} bytes ({size / 1024**3:.2f} GB), {entries} entries, '
+          f'{total_messages} messages, {"big-media" if BIG_MEDIA else "media-heavy"}', flush=True)
+    sys.exit(0)
+
 with zipfile.ZipFile(OUT, 'w', allowZip64=True) as zf:
     put(zf, 'your_instagram_activity/messages/inbox/.keep', b'')
 

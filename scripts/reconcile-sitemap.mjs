@@ -19,12 +19,52 @@ import { join, relative, sep } from 'node:path';
 const OUT = 'out';
 const SITE_URL = 'https://www.mubifiles.com';
 
-/** The rules, each with the reason it exists, quoted in the output. */
-const RULES = {
-  '/404/': 'not indexable: a 404 is a status, not content (lib/routes.ts EXCLUDED_ROUTES)',
-  '/_not-found/': "not indexable: the App Router's internal name for the same page (lib/routes.ts EXCLUDED_ROUTES)",
-  '/tools/instagram-data-download-viewer/': 'under construction, deliberately unlisted (lib/routes.ts EXCLUDED_ROUTES)',
+/**
+ * The reasons, quoted in the output. The *list* is not kept here — it is read
+ * out of lib/routes.ts below and the two are required to agree.
+ *
+ * They did not agree before this: a route removed from EXCLUDED_ROUTES stayed
+ * in this script's copy, so the reconciler went on describing a listed page as
+ * excluded. A checker with its own private copy of the thing it is checking is
+ * not a checker.
+ */
+const REASONS = {
+  '/404/': 'not indexable: a 404 is a status, not content',
+  '/_not-found/': "not indexable: the App Router's internal name for the same page",
 };
+
+/**
+ * EXCLUDED_ROUTES, read from the TypeScript rather than duplicated. Parsing
+ * source with a regex is ugly; having two lists that can drift is worse, and
+ * this one fails loudly rather than silently agreeing with itself.
+ */
+function excludedRoutes() {
+  const source = readFileSync('lib/routes.ts', 'utf8');
+  const block = source.match(/EXCLUDED_ROUTES\s*=\s*new Set\(\[([\s\S]*?)\]\)/);
+  if (!block) {
+    console.error('reconcile-sitemap: could not find EXCLUDED_ROUTES in lib/routes.ts');
+    process.exit(2);
+  }
+  return [...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+}
+
+const RULES = {};
+for (const route of excludedRoutes()) {
+  if (!REASONS[route]) {
+    console.error(
+      `reconcile-sitemap: ${route} is excluded in lib/routes.ts but has no reason here. ` +
+        'Add one to REASONS — an unexplained omission from the sitemap is the thing this script exists to catch.',
+    );
+    process.exit(2);
+  }
+  RULES[route] = `${REASONS[route]} (lib/routes.ts EXCLUDED_ROUTES)`;
+}
+for (const route of Object.keys(REASONS)) {
+  if (!RULES[route]) {
+    console.error(`reconcile-sitemap: ${route} has a reason here but is no longer excluded in lib/routes.ts.`);
+    process.exit(2);
+  }
+}
 
 /** Files that are the same page as another URL, not a page of their own. */
 const ALIASES = { '404.html': '/404/' };

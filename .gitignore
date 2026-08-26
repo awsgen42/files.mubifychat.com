@@ -11,5 +11,5 @@ next-env.d.ts
 
 # Measurement fixtures: regenerable from perf/make-export.py, too large to commit.
 perf/fixtures/*.zip
-perf/fixtures/build.log
+perf/fixtures/*.log
 perf/node_modules/
