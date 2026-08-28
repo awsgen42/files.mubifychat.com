@@ -2,6 +2,7 @@ import { handleApi } from './api';
 import { preflight, resolveOrigin, withCors } from './cors';
 import type { Env } from './env';
 import { ApiError, apiError } from './http';
+import { CANONICAL_REDIRECT_STATUS, canonicalRedirect } from '../shared/trailing-slash';
 import { sessionIdFromObjectKey, sessionIdKey } from './session';
 
 /** Objects younger than this are never collected, to allow for KV read latency. */
@@ -16,6 +17,24 @@ const SECURITY_HEADERS: Record<string, string> = {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    // One URL per page, before anything else can answer.
+    //
+    // The asset server already redirects a bare path to the slashed one, but
+    // with a 307 — measured against `wrangler dev`, under both
+    // "auto-trailing-slash" and "force-trailing-slash". A temporary redirect
+    // leaves the bare URL as a candidate, and two URLs for one page split its
+    // ranking signal. Issuing the 308 here means the assets binding never sees
+    // the bare form.
+    const canonical = canonicalRedirect(url);
+    if (canonical) {
+      return withSecurityHeaders(
+        new Response(null, {
+          status: CANONICAL_REDIRECT_STATUS,
+          headers: { location: canonical },
+        }),
+      );
+    }
 
     // The Worker keeps serving the bundled UI, so Cloudflare remains a
     // complete deployment even when a separate frontend host is in play.

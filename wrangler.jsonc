@@ -6,12 +6,32 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
 
-  // The exported Next.js UI. The Worker handles /api/* first; everything
-  // else falls through to the static assets.
+  // The exported Next.js UI. Every request runs the Worker first; it issues
+  // the trailing-slash redirect, handles /api/*, and hands everything else to
+  // the static assets.
   "assets": {
     "directory": "./out",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*"],
+    // Every request, not just /api/*, so worker/index.ts can issue the
+    // trailing-slash 308 before anything else answers.
+    //
+    // It was ["/api/*"], which meant the asset server answered every page
+    // request first and the Worker's non-API branch never ran at all. That
+    // branch looked like it was serving the UI; measured against `wrangler
+    // dev`, it was unreachable.
+    //
+    // The redirect has to come from the Worker because the asset server's own
+    // handling cannot do it: "auto-trailing-slash" and "force-trailing-slash"
+    // were both measured, and both redirect the bare form to the slashed one
+    // with a 307. A temporary redirect leaves the bare URL as a candidate,
+    // which is the whole defect. html_handling is therefore left at its
+    // default — the Worker gets there first.
+    //
+    // The cost is a Worker invocation on every request rather than only on
+    // /api/*. Measured alongside it: assets, the manifest, the sitemap and the
+    // RSC payloads all still serve with the right content types, /api/* is not
+    // redirected, and ?code= survives the redirect.
+    "run_worker_first": true,
     "not_found_handling": "404-page"
   },
 
